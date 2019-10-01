@@ -1,0 +1,27 @@
+{
+  "name": "origamisimulator",
+  "version": "1.0.0",
+  "description": "Live demo at <a href=\"http://apps.amandaghassaei.com/OrigamiSimulator\">apps.amandaghassaei.com/OrigamiSimulator</a><br/>",
+  "main": "js/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/freestraws/OrigamiSimulator.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/freestraws/OrigamiSimulator/issues"
+  },
+  "homepage": "https://github.com/freestraws/OrigamiSimulator#readme",
+  "dependencies": {
+    "earcut": "^2.2.1",
+    "fold": "^0.10.4",
+    "ini": "^1.3.5",
+    "numeric": "^1.2.6",
+    "three": "^0.102.1",
+    "underscore": "^1.9.1"
+  }
+}

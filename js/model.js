@@ -1,51 +1,75 @@
 /**
  * Created by amandaghassaei on 2/24/17.
+ * nodified by freestraws on 9/29/2019
  */
 
 //model updates object3d geometry and materials
 
-function initModel(globals){
-
-    var material, material2, geometry;
-    var frontside = new THREE.Mesh();//front face of mesh
-    var backside = new THREE.Mesh();//back face of mesh (different color)
-    backside.visible = false;
-
-    var lineMaterial = new THREE.LineBasicMaterial({color: 0x000000, linewidth: 1});
-    var hingeLines = new THREE.LineSegments(null, lineMaterial);
-    var mountainLines = new THREE.LineSegments(null, lineMaterial);
-    var valleyLines = new THREE.LineSegments(null, lineMaterial);
-    var cutLines = new THREE.LineSegments(null, lineMaterial);
-    var facetLines = new THREE.LineSegments(null, lineMaterial);
-    var borderLines = new THREE.LineSegments(null, lineMaterial);
-
-    var lines = {
-        U: hingeLines,
-        M: mountainLines,
-        V: valleyLines,
-        C: cutLines,
-        F: facetLines,
-        B: borderLines
-    };
-
-    clearGeometries();
-    setMeshMaterial();
-
-    function clearGeometries(){
-
-        if (geometry) {
-            frontside.geometry = null;
-            backside.geometry = null;
-            geometry.dispose();
+module.exports = Model = class {
+    constructor(config){
+        this.config = config
+        if (this.config.vis_3d.simType == "dynamic") this.solver = global.dynamicSolver
+        else if (this.config.vis_3d.simType == "static") this.solver = global.staticSolver
+        else this.solver = global.rigidSolver
+        this.material, this.material2, this.geometry
+        this.frontside = new THREE.Mesh() //front face of mesh
+        this.backside = new THREE.Mesh() //back face of mesh (different color)
+        backside.visible = false;
+    
+        this.lineMaterial = new THREE.LineBasicMaterial({color: 0x000000, linewidth: 1})
+        this.hingeLines = new THREE.LineSegments(null, lineMaterial)
+        this.mountainLines = new THREE.LineSegments(null, lineMaterial)
+        this.valleyLines = new THREE.LineSegments(null, lineMaterial)
+        this.cutLines = new THREE.LineSegments(null, lineMaterial)
+        this.facetLines = new THREE.LineSegments(null, lineMaterial)
+        this.borderLines = new THREE.LineSegments(null, lineMaterial)
+    
+        this.lines = {
+            U: hingeLines,
+            M: mountainLines,
+            V: valleyLines,
+            C: cutLines,
+            F: facetLines,
+            B: borderLines
         }
 
-        geometry = new THREE.BufferGeometry();
-        frontside.geometry = geometry;
-        backside.geometry = geometry;
-        // geometry.verticesNeedUpdate = true;
-        geometry.dynamic = true;
+        this.positions //place to store buffer geo vertex data
+        this.colors //place to store buffer geo vertex colors
+        this.indices
+        this.nodes = []
+        this.faces = []
+        this.edges = []
+        this.creases = []
+        this.vertices = [] //indexed vertices array
+        this.fold, this.creaseParams
+    
+        this.nextCreaseParams, nextFold //todo only nextFold, nextCreases?
+    
+        this.inited = false
+    
+        this.clearGeometries()
+        this.setMeshMaterial()
+        // globals.threeView.sceneAddModel(frontside)
+        // globals.threeView.sceneAddModel(backside)
+        // _.each(this.lines, function(line){
+        //     globals.threeView.sceneAddModel(line)
+        // });
+    }
 
-        _.each(lines, function(line){
+    clearGeometries(){
+        if (this.geometry) {
+            this.frontside.geometry = null;
+            this.backside.geometry = null;
+            this.geometry.dispose();
+        }
+
+        this.geometry = new THREE.BufferGeometry();
+        this.frontside.geometry = this.geometry;
+        this.backside.geometry = this.geometry;
+        // geometry.verticesNeedUpdate = true;
+        this.geometry.dynamic = true;
+
+        _.each(this.lines, function(line){
             var lineGeometry = line.geometry;
             if (lineGeometry) {
                 line.geometry = null;
@@ -59,140 +83,115 @@ function initModel(globals){
         });
     }
 
-    globals.threeView.sceneAddModel(frontside);
-    globals.threeView.sceneAddModel(backside);
-    _.each(lines, function(line){
-        globals.threeView.sceneAddModel(line);
-    });
-
-    var positions;//place to store buffer geo vertex data
-    var colors;//place to store buffer geo vertex colors
-    var indices;
-    var nodes = [];
-    var faces = [];
-    var edges = [];
-    var creases = [];
-    var vertices = [];//indexed vertices array
-    var fold, creaseParams;
-
-    var nextCreaseParams, nextFold;//todo only nextFold, nextCreases?
-
-    var inited = false;
-
-    function setMeshMaterial() {
+    setMeshMaterial() {
         var polygonOffset = 0.5;
-        if (globals.colorMode == "normal") {
-            material = new THREE.MeshNormalMaterial({
+        if (this.config.view.colorMode == "normal") {
+            this.material = new THREE.MeshNormalMaterial({
                 flatShading:true,
                 side: THREE.DoubleSide,
                 polygonOffset: true,
                 polygonOffsetFactor: polygonOffset, // positive value pushes polygon further away
                 polygonOffsetUnits: 1
             });
-            backside.visible = false;
-        } else if (globals.colorMode == "axialStrain"){
-            material = new THREE.MeshBasicMaterial({
+            this.backside.visible = false;
+        } else if (this.config.view.colorMode == "axialStrain"){
+            this.material = new THREE.MeshBasicMaterial({
                 vertexColors: THREE.VertexColors, side:THREE.DoubleSide,
                 polygonOffset: true,
                 polygonOffsetFactor: polygonOffset, // positive value pushes polygon further away
                 polygonOffsetUnits: 1
             });
-            backside.visible = false;
-            if (!globals.threeView.simulationRunning) {
-                getSolver().render();
-                setGeoUpdates();
+            this.backside.visible = false;
+            if (!global.threeView.simulationRunning) {
+                this.getSolver().render();
+                this.setGeoUpdates();
             }
         } else {
-            material = new THREE.MeshPhongMaterial({
+            this.material = new THREE.MeshPhongMaterial({
                 flatShading:true,
                 side:THREE.FrontSide,
                 polygonOffset: true,
                 polygonOffsetFactor: polygonOffset, // positive value pushes polygon further away
                 polygonOffsetUnits: 1
             });
-            material2 = new THREE.MeshPhongMaterial({
+            this.material2 = new THREE.MeshPhongMaterial({
                 flatShading:true,
-                side:THREE.BackSide,
+                side: THREE.BackSide,
                 polygonOffset: true,
                 polygonOffsetFactor: polygonOffset, // positive value pushes polygon further away
                 polygonOffsetUnits: 1
             });
-            material.color.setStyle( "#" + globals.color1);
-            material2.color.setStyle( "#" + globals.color2);
-            backside.visible = true;
+            this.material.color.setStyle( "#" + this.config.view.color1);
+            this.material2.color.setStyle( "#" + this.config.view.color2);
+            this.backside.visible = true;
         }
-        frontside.material = material;
-        backside.material = material2;
+        this.frontside.material = material;
+        this.backside.material = material2;
     }
 
-    function updateEdgeVisibility(){
-        mountainLines.visible = globals.edgesVisible && globals.mtnsVisible;
-        valleyLines.visible = globals.edgesVisible && globals.valleysVisible;
-        facetLines.visible = globals.edgesVisible && globals.panelsVisible;
-        hingeLines.visible = globals.edgesVisible && globals.passiveEdgesVisible;
-        borderLines.visible = globals.edgesVisible && globals.boundaryEdgesVisible;
-        cutLines.visible = false;
+    updateEdgeVisibility(){
+        this.mountainLines.visible = this.config.view.edgesVisible && this.config.view.mtnsVisible;
+        this.valleyLines.visible = this.config.view.edgesVisible && this.config.view.valleysVisible;
+        this.facetLines.visible = this.config.view.edgesVisible && this.config.view.panelsVisible;
+        this.hingeLines.visible = this.config.view.edgesVisible && this.config.view.passiveEdgesVisible;
+        this.borderLines.visible = this.config.view.edgesVisible && this.config.view.boundaryEdgesVisible;
+        this.cutLines.visible = false;
     }
 
-    function updateMeshVisibility(){
-        frontside.visible = globals.meshVisible;
-        backside.visible = globals.colorMode == "color" && globals.meshVisible;
+    updateMeshVisibility(){
+        this.frontside.visible = this.config.view.meshVisible;
+        this.backside.visible = this.config.view.colorMode == "color" && this.config.view.meshVisible;
     }
 
-    function getGeometry(){
-        return geometry;
+    getGeometry(){
+        return this.geometry;
     }
 
-    function getMesh(){
-        return [frontside, backside];
+    getMesh(){
+        return [this.frontside, this.backside];
     }
 
-    function getPositionsArray(){
-        return positions;
+    getPositionsArray(){
+        return this.positions;
     }
 
-    function getColorsArray(){
-        return colors;
+    getColorsArray(){
+        return this.colors;
     }
 
-    function pause(){
+    pause(){
         globals.threeView.pauseSimulation();
     }
 
-    function resume(){
+    resume(){
         globals.threeView.startSimulation();
     }
 
-    function reset(){
-        getSolver().reset();
-        setGeoUpdates();
+    reset(){
+        this.getSolver().reset();
+        this.setGeoUpdates();
     }
 
-    function step(numSteps){
-        getSolver().solve(numSteps);
-        setGeoUpdates();
+    step(numSteps){
+        this.getSolver().solve(numSteps);
+        this.setGeoUpdates();
     }
 
-    function setGeoUpdates(){
-        geometry.attributes.position.needsUpdate = true;
-        if (globals.colorMode == "axialStrain") geometry.attributes.color.needsUpdate = true;
-        if (globals.userInteractionEnabled || globals.vrEnabled) geometry.computeBoundingBox();
+    setGeoUpdates(){
+        this.geometry.attributes.position.needsUpdate = true;
+        if (this.config.view.colorMode == "axialStrain") this.geometry.attributes.color.needsUpdate = true;
+        if (this.config.toggles.userInteractionEnabled || this.config.toggles.vrEnabled) this.geometry.computeBoundingBox();
     }
 
-    function startSolver(){
-        globals.threeView.startAnimation();
+    startSolver(){
+        global.threeView.startAnimation();
+    } 
+
+    getSolver(){
+        return this.solver
     }
 
-    function getSolver(){
-        if (globals.simType == "dynamic") return globals.dynamicSolver;
-        else if (globals.simType == "static") return globals.staticSolver;
-        return globals.rigidSolver;
-    }
-
-
-
-
-    function buildModel(fold, creaseParams){
+    buildModel(fold, creaseParams){
 
         if (fold.vertices_coords.length == 0) {
             globals.warn("No geometry found.");
@@ -207,98 +206,95 @@ function initModel(globals){
             return;
         }
 
-        nextFold = fold;
-        nextCreaseParams = creaseParams;
+        this.nextFold = fold;
+        this.nextCreaseParams = creaseParams;
 
-        globals.needsSync = true;
-        globals.simNeedsSync = true;
+        global.needsSync = true;
+        global.simNeedsSync = true;
 
-        if (!inited) {
-            startSolver();//start animation loop
-            inited = true;
+        if (!this.inited) {
+            this.startSolver();//start animation loop
+            this.inited = true;
         }
     }
 
-
-
-    function sync(){
-
-        for (var i=0;i<nodes.length;i++){
-            nodes[i].destroy();
+    sync(){
+        for (var i=0;i<this.nodes.length;i++){
+            this.nodes[i].destroy();
         }
 
-        for (var i=0;i<edges.length;i++){
-            edges[i].destroy();
+        for (var i=0;i<this.edges.length;i++){
+            this.edges[i].destroy();
         }
 
-        for (var i=0;i<creases.length;i++){
-            creases[i].destroy();
+        for (var i=0;i<this.creases.length;i++){
+            this.creases[i].destroy();
         }
 
-        fold = nextFold;
-        nodes = [];
-        edges = [];
-        faces = fold.faces_vertices;
-        creases = [];
-        creaseParams = nextCreaseParams;
-        var _edges = fold.edges_vertices;
+        this.fold = nextFold;
+        this.nodes = [];
+        this.edges = [];
+        this.faces = this.fold.faces_vertices;
+        this.creases = [];
+        this.creaseParams = nextCreaseParams;
+        var _edges = this.fold.edges_vertices;
 
         var _vertices = [];
-        for (var i=0;i<fold.vertices_coords.length;i++){
-            var vertex = fold.vertices_coords[i];
+        for (var i=0;i<this.fold.vertices_coords.length;i++){
+            var vertex = this.fold.vertices_coords[i];
             _vertices.push(new THREE.Vector3(vertex[0], vertex[1], vertex[2]));
         }
 
         for (var i=0;i<_vertices.length;i++){
-            nodes.push(new Node(_vertices[i].clone(), nodes.length));
+            this.nodes.push(new Node(_vertices[i].clone(), this.nodes.length));
         }
         // _nodes[_faces[0][0]].setFixed(true);
         // _nodes[_faces[0][1]].setFixed(true);
         // _nodes[_faces[0][2]].setFixed(true);
 
         for (var i=0;i<_edges.length;i++) {
-            edges.push(new Beam([nodes[_edges[i][0]], nodes[_edges[i][1]]]));
+            this.edges.push(new Beam([this.nodes[_edges[i][0]], this.nodes[_edges[i][1]]]));
         }
 
-        for (var i=0;i<creaseParams.length;i++) {//allCreaseParams.length
-            var _creaseParams = creaseParams[i];//face1Ind, vert1Ind, face2Ind, ver2Ind, edgeInd, angle
+        for (var i=0;i<this.creaseParams.length;i++) {//allCreaseParams.length
+            var _creaseParams = this.creaseParams[i];//face1Ind, vert1Ind, face2Ind, ver2Ind, edgeInd, angle
             var type = _creaseParams[5]!=0 ? 1:0;
             //edge, face1Index, face2Index, targetTheta, type, node1, node2, index
-            creases.push(new Crease(edges[_creaseParams[4]], _creaseParams[0], _creaseParams[2], _creaseParams[5], type, nodes[_creaseParams[1]], nodes[_creaseParams[3]], creases.length));
+            this.creases.push(new Crease(this.edges[_creaseParams[4]], _creaseParams[0], _creaseParams[2], _creaseParams[5], type, this.nodes[_creaseParams[1]], this.nodes[_creaseParams[3]], this.creases.length));
         }
 
-        vertices = [];
-        for (var i=0;i<nodes.length;i++){
-            vertices.push(nodes[i].getOriginalPosition());
+        this.vertices = [];
+        for (var i=0;i<this.nodes.length;i++){
+            this.vertices.push(this.nodes[i].getOriginalPosition());
         }
 
-        if (globals.noCreasePatternAvailable() && globals.navMode == "pattern"){
+        if (globals.noCreasePatternAvailable() && this.config.navMode == "pattern"){
             //switch to simulation mode
             $("#navSimulation").parent().addClass("open");
             $("#navPattern").parent().removeClass("open");
             $("#svgViewer").hide();
-            globals.navMode = "simulation";
+            this.config.navMode = "simulation";
         }
 
-        positions = new Float32Array(vertices.length*3);
-        colors = new Float32Array(vertices.length*3);
-        indices = new Uint16Array(faces.length*3);
+        this.positions = new Float32Array(this.vertices.length*3);
+        this.colors = new Float32Array(this.vertices.length*3);
+        this.indices = new Uint16Array(this.faces.length*3);
 
-        for (var i=0;i<vertices.length;i++){
-            positions[3*i] = vertices[i].x;
-            positions[3*i+1] = vertices[i].y;
-            positions[3*i+2] = vertices[i].z;
+        for (var i=0;i<this.vertices.length;i++){
+            this.positions[3*i] = this.vertices[i].x;
+            this.positions[3*i+1] = this.vertices[i].y;
+            this.positions[3*i+2] = this.vertices[i].z;
         }
-        for (var i=0;i<faces.length;i++){
-            var face = faces[i];
-            indices[3*i] = face[0];
-            indices[3*i+1] = face[1];
-            indices[3*i+2] = face[2];
+        for (var i=0;i<this.faces.length;i++){
+            var face = this.faces[i];
+            this.indices[3*i] = face[0];
+            this.indices[3*i+1] = face[1];
+            this.indices[3*i+2] = face[2];
         }
 
-        clearGeometries();
+        this.clearGeometries();
 
-        var positionsAttribute = new THREE.BufferAttribute(positions, 3);
+        var positionsAttribute = new THREE.BufferAttribute(this.positions, 3);
 
         var lineIndices = {
             U: [],
@@ -308,116 +304,89 @@ function initModel(globals){
             F: [],
             C: []
         };
-        for (var i=0;i<fold.edges_assignment.length;i++){
-            var edge = fold.edges_vertices[i];
-            var assignment = fold.edges_assignment[i];
+        for (var i=0;i<this.fold.edges_assignment.length;i++){
+            var edge = this.fold.edges_vertices[i];
+            var assignment = this.fold.edges_assignment[i];
             lineIndices[assignment].push(edge[0]);
             lineIndices[assignment].push(edge[1]);
         }
-        _.each(lines, function(line, key){
+        _.each(this.lines, function(line, key){
             var indicesArray = lineIndices[key];
             var indices = new Uint16Array(indicesArray.length);
             for (var i=0;i<indicesArray.length;i++){
                 indices[i] = indicesArray[i];
             }
-            lines[key].geometry.addAttribute('position', positionsAttribute);
-            lines[key].geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+            this.lines[key].geometry.addAttribute('position', positionsAttribute);
+            this.lines[key].geometry.setIndex(new THREE.BufferAttribute(indices, 1));
             // lines[key].geometry.attributes.position.needsUpdate = true;
             // lines[key].geometry.index.needsUpdate = true;
-            lines[key].geometry.computeBoundingBox();
-            lines[key].geometry.computeBoundingSphere();
-            lines[key].geometry.center();
+            this.lines[key].geometry.computeBoundingBox();
+            this.lines[key].geometry.computeBoundingSphere();
+            this.lines[key].geometry.center();
         });
 
-        geometry.addAttribute('position', positionsAttribute);
-        geometry.addAttribute('color', new THREE.BufferAttribute(colors, 3));
-        geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+        this.geometry.addAttribute('position', positionsAttribute);
+        this.geometry.addAttribute('color', new THREE.BufferAttribute(colors, 3));
+        this.geometry.setIndex(new THREE.BufferAttribute(indices, 1));
         // geometry.attributes.position.needsUpdate = true;
         // geometry.index.needsUpdate = true;
         // geometry.verticesNeedUpdate = true;
-        geometry.computeVertexNormals();
-        geometry.computeBoundingBox();
-        geometry.computeBoundingSphere();
-        geometry.center();
+        this.geometry.computeVertexNormals();
+        this.geometry.computeBoundingBox();
+        this.geometry.computeBoundingSphere();
+        this.geometry.center();
 
-        var scale = 1/geometry.boundingSphere.radius;
-        globals.scale = scale;
+        var scale = 1/this.geometry.boundingSphere.radius;
+        this.config.scale = scale;
 
         //scale geometry
-        for (var i=0;i<positions.length;i++){
-            positions[i] *= scale;
+        for (var i=0;i<this.positions.length;i++){
+            this.positions[i] *= scale;
         }
-        for (var i=0;i<vertices.length;i++){
-            vertices[i].multiplyScalar(scale);
+        for (var i=0;i<this.vertices.length;i++){
+            this.vertices[i].multiplyScalar(scale);
         }
 
         //update vertices and edges
-        for (var i=0;i<vertices.length;i++){
-            nodes[i].setOriginalPosition(positions[3*i], positions[3*i+1], positions[3*i+2]);
+        for (var i=0;i<this.vertices.length;i++){
+            this.nodes[i].setOriginalPosition(positions[3*i], positions[3*i+1], positions[3*i+2]);
         }
-        for (var i=0;i<edges.length;i++){
-            edges[i].recalcOriginalLength();
+        for (var i=0;i<this.edges.length;i++){
+            this.edges[i].recalcOriginalLength();
         }
 
-        updateEdgeVisibility();
-        updateMeshVisibility();
+        this.updateEdgeVisibility();
+        this.updateMeshVisibility();
 
-        syncSolver();
+        this.syncSolver();
 
-        globals.needsSync = false;
-        if (!globals.simulationRunning) reset();
+        global.needsSync = false;
+        if (!global.simulationRunning) reset();
     }
 
-    function syncSolver(){
-        getSolver().syncNodesAndEdges();
-        globals.simNeedsSync = false;
+    syncSolver(){
+        this.getSolver().syncNodesAndEdges(this.getNodes(), this.getEdges(), this.getFaces(), this.getCreases(), this.getPositionsArray(), this.getColorsArray());
+        global.simNeedsSync = false;
     }
 
-    function getNodes(){
-        return nodes;
+    getNodes(){
+        return this.nodes;
     }
 
-    function getEdges(){
-        return edges;
+    getEdges(){
+        return this.edges;
     }
 
-    function getFaces(){
-        return faces;
+    getFaces(){
+        return this.faces;
     }
 
-    function getCreases(){
-        return creases;
+    getCreases(){
+        return this.creases;
     }
 
-    function getDimensions(){
-        geometry.computeBoundingBox();
-        return geometry.boundingBox.max.clone().sub(geometry.boundingBox.min);
-    }
-
-    return {
-        pause: pause,
-        resume: resume,
-        reset: reset,
-        step: step,
-
-        getNodes: getNodes,
-        getEdges: getEdges,
-        getFaces: getFaces,
-        getCreases: getCreases,
-        getGeometry: getGeometry,//for save stl
-        getPositionsArray: getPositionsArray,
-        getColorsArray: getColorsArray,
-        getMesh: getMesh,
-
-        buildModel: buildModel,//load new model
-        sync: sync,//update geometry to new model
-        syncSolver: syncSolver,//update solver params
-
-        //rendering
-        setMeshMaterial: setMeshMaterial,
-        updateEdgeVisibility: updateEdgeVisibility,
-        updateMeshVisibility: updateMeshVisibility,
-
-        getDimensions: getDimensions//for save stl
+    getDimensions(){
+        this.geometry.computeBoundingBox();
+        return this.geometry.boundingBox.max.clone().sub(this.geometry.boundingBox.min);
     }
 }

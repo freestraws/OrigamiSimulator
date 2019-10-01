@@ -1,79 +1,81 @@
 /**
  * Created by ghassaei on 10/7/16.
+ * nodified by freestraws on 9/29/2019
  */
+const shader_dir = "../shaders/"
+module.exports = class dynamicSolver{
+    constructor(config){
+    this.gpuMath = initGPUMath();
+    this.config = config
+    this.nodes;
+    this.edges;
+    this.faces;
+    this.creases;
+    this.positions;
+    this.colors;
 
-function initDynamicSolver(globals){
+    this.originalPosition;
+    this.position;
+    this.lastPosition;
+    this.lastLastPosition;//for verlet integration
+    this.velocity;
+    this.lastVelocity;
+    this.externalForces;
+    this.mass;
+    this.meta;//[beamMetaIndex, numBeams, nodeCreaseMetaIndex, numCreases]
+    this.meta2;//[nodeFaceMetaIndex, numFaces]
+    this.beamMeta;//[K, D, length, otherNodeIndex]
 
-    globals.gpuMath = initGPUMath();
+    this.normals;
+    this.faceVertexIndices;//[a,b,c] textureDimFaces
+    this.nominalTriangles;//[angleA, angleB, angleC]
+    this.nodeFaceMeta;//[faceIndex, a, b, c] textureNodeFaces
+    this.creaseMeta;//[k, d, targetTheta, -] textureDimCreases
+    this.creaseMeta2;//[node1Index, node2Index, node3index, node4index]//nodes 1 and 2 are opposite crease, 3 and 4 are on crease, textureDimCreases
+    this.nodeCreaseMeta;//[creaseIndex (thetaIndex), nodeIndex (1/2/3/4), -, -] textureDimNodeCreases
+    this.creaseGeo;//[h1, h2, coef1, coef2]
+    this.creaseVectors;//indices of crease nodes
+    this.theta;//[theta, w, normalIndex1, normalIndex2]
+    this.lastTheta;//[theta, w, normalIndex1, normalIndex2]
 
-    var nodes;
-    var edges;
-    var faces;
-    var creases;
-    var positions;
-    var colors;
+    this.programsInited = false;//flag for initial setup
 
-    var originalPosition;
-    var position;
-    var lastPosition;
-    var lastLastPosition;//for verlet integration
-    var velocity;
-    var lastVelocity;
-    var externalForces;
-    var mass;
-    var meta;//[beamMetaIndex, numBeams, nodeCreaseMetaIndex, numCreases]
-    var meta2;//[nodeFaceMetaIndex, numFaces]
-    var beamMeta;//[K, D, length, otherNodeIndex]
-
-    var normals;
-    var faceVertexIndices;//[a,b,c] textureDimFaces
-    var nominalTriangles;//[angleA, angleB, angleC]
-    var nodeFaceMeta;//[faceIndex, a, b, c] textureNodeFaces
-    var creaseMeta;//[k, d, targetTheta, -] textureDimCreases
-    var creaseMeta2;//[node1Index, node2Index, node3index, node4index]//nodes 1 and 2 are opposite crease, 3 and 4 are on crease, textureDimCreases
-    var nodeCreaseMeta;//[creaseIndex (thetaIndex), nodeIndex (1/2/3/4), -, -] textureDimNodeCreases
-    var creaseGeo;//[h1, h2, coef1, coef2]
-    var creaseVectors;//indices of crease nodes
-    var theta;//[theta, w, normalIndex1, normalIndex2]
-    var lastTheta;//[theta, w, normalIndex1, normalIndex2]
-
-    function syncNodesAndEdges(){
-        nodes = globals.model.getNodes();
-        edges = globals.model.getEdges();
-        faces = globals.model.getFaces();
-        creases = globals.model.getCreases();
-
-        positions = globals.model.getPositionsArray();
-        colors = globals.model.getColorsArray();
-
-        initTypedArrays();
-        initTexturesAndPrograms(globals.gpuMath);
-        setSolveParams();
+    this.textureDim = 0;
+    this.textureDimEdges = 0;
+    this.textureDimFaces = 0;
+    this.textureDimCreases = 0;
+    this.textureDimNodeCreases = 0;
+    this.textureDimNodeFaces = 0;
     }
 
-    var programsInited = false;//flag for initial setup
+    syncNodesAndEdges(nodes, edges, faces, creases, positions, colors){
+        this.nodes = nodes
+        this.edges = edges
+        this.faces = faces
+        this.creases = creases
 
-    var textureDim = 0;
-    var textureDimEdges = 0;
-    var textureDimFaces = 0;
-    var textureDimCreases = 0;
-    var textureDimNodeCreases = 0;
-    var textureDimNodeFaces = 0;
+        this.positions = positions
+        this.colors = colors
 
-    function reset(){
-        globals.gpuMath.step("zeroTexture", [], "u_position");
-        globals.gpuMath.step("zeroTexture", [], "u_lastPosition");
-        globals.gpuMath.step("zeroTexture", [], "u_lastLastPosition");
-        globals.gpuMath.step("zeroTexture", [], "u_velocity");
-        globals.gpuMath.step("zeroTexture", [], "u_lastVelocity");
-        globals.gpuMath.step("zeroThetaTexture", ["u_lastTheta"], "u_theta");
-        globals.gpuMath.step("zeroThetaTexture", ["u_theta"], "u_lastTheta");
-        render();
+        this.initTypedArrays();
+        this.initTexturesAndPrograms(this.gpuMath);
+        this.setSolveParams();
     }
 
-    function solve(_numSteps){
+    reset(){
+        this.gpuMath.step("zeroTexture", [], "u_position");
+        this.gpuMath.step("zeroTexture", [], "u_lastPosition");
+        this.gpuMath.step("zeroTexture", [], "u_lastLastPosition");
+        this.gpuMath.step("zeroTexture", [], "u_velocity");
+        this.gpuMath.step("zeroTexture", [], "u_lastVelocity");
+        this.gpuMath.step("zeroThetaTexture", ["u_lastTheta"], "u_theta");
+        this.gpuMath.step("zeroThetaTexture", ["u_theta"], "u_lastTheta");
+        this.render();
+    }
 
-        if (globals.shouldAnimateFoldPercent){
+    solve(_numSteps){
+
+        if (this.shouldAnimateFoldPercent){
             globals.creasePercent = globals.videoAnimator.nextFoldAngle(0);
             globals.controls.updateCreasePercent();
             setCreasePercent(globals.creasePercent);
@@ -81,63 +83,63 @@ function initDynamicSolver(globals){
         }
 
         if (globals.forceHasChanged) {
-            updateExternalForces();
+            this.updateExternalForces();
             globals.forceHasChanged = false;
         }
         if (globals.fixedHasChanged) {
-            updateFixed();
+            this.updateFixed();
             globals.fixedHasChanged = false;
         }
         if (globals.nodePositionHasChanged) {
-            updateLastPosition();
+            this.updateLastPosition();
             globals.nodePositionHasChanged = false;
         }
         if (globals.creaseMaterialHasChanged) {
-            updateCreasesMeta();
+            this.updateCreasesMeta();
             globals.creaseMaterialHasChanged = false;
         }
         if (globals.materialHasChanged) {
-            updateMaterials();
+            this.updateMaterials();
             globals.materialHasChanged = false;
         }
         if (globals.shouldChangeCreasePercent) {
-            setCreasePercent(globals.creasePercent);
+            this.setCreasePercent(globals.creasePercent);
             globals.shouldChangeCreasePercent = false;
         }
         // if (globals.shouldZeroDynamicVelocity){
-        //     globals.gpuMath.step("zeroTexture", [], "u_velocity");
-        //     globals.gpuMath.step("zeroTexture", [], "u_lastVelocity");
+        //     this.gpuMath.step("zeroTexture", [], "u_velocity");
+        //     this.gpuMath.step("zeroTexture", [], "u_lastVelocity");
         //     globals.shouldZeroDynamicVelocity = false;
         // }
         if (globals.shouldCenterGeo){
-            var avgPosition = getAvgPosition();
-            globals.gpuMath.setProgram("centerTexture");
-            globals.gpuMath.setUniformForProgram("centerTexture", "u_center", [avgPosition.x, avgPosition.y, avgPosition.z], "3f");
-            globals.gpuMath.step("centerTexture", ["u_lastPosition"], "u_position");
-            if (globals.integrationType == "verlet") globals.gpuMath.step("copyTexture", ["u_position"], "u_lastLastPosition");
-            globals.gpuMath.swapTextures("u_position", "u_lastPosition");
-            globals.gpuMath.step("zeroTexture", [], "u_lastVelocity");
-            globals.gpuMath.step("zeroTexture", [], "u_velocity");
+            var avgPosition = this.getAvgPosition();
+            this.gpuMath.setProgram("centerTexture");
+            this.gpuMath.setUniformForProgram("centerTexture", "u_center", [avgPosition.x, avgPosition.y, avgPosition.z], "3f");
+            this.gpuMath.step("centerTexture", ["u_lastPosition"], "u_position");
+            if (this.config.dynamicSolver.integrationType == "verlet") this.gpuMath.step("copyTexture", ["u_position"], "u_lastLastPosition");
+            this.gpuMath.swapTextures("u_position", "u_lastPosition");
+            this.gpuMath.step("zeroTexture", [], "u_lastVelocity");
+            this.gpuMath.step("zeroTexture", [], "u_velocity");
             globals.shouldCenterGeo = false;
         }
 
-        if (_numSteps === undefined) _numSteps = globals.numSteps;
+        if (_numSteps === undefined) _numSteps = this.config.numSteps;
         for (var j=0;j<_numSteps;j++){
-            solveStep();
+            this.solveStep();
         }
-        render();
+        this.render();
     }
 
-    function solveStep(){
+    solveStep(){
 
-        var gpuMath = globals.gpuMath;
+        var gpuMath = this.gpuMath;
 
         gpuMath.setProgram("normalCalc");
-        gpuMath.setSize(textureDimFaces, textureDimFaces);
+        gpuMath.setSize(this.textureDimFaces, this.textureDimFaces);
         gpuMath.step("normalCalc", ["u_faceVertexIndices", "u_lastPosition", "u_originalPosition"], "u_normals");
 
         gpuMath.setProgram("thetaCalc");
-        gpuMath.setSize(textureDimCreases, textureDimCreases);
+        gpuMath.setSize(this.textureDimCreases, this.textureDimCreases);
         gpuMath.step("thetaCalc", ["u_normals", "u_lastTheta", "u_creaseVectors", "u_lastPosition",
             "u_originalPosition"], "u_theta");
 
@@ -145,9 +147,9 @@ function initDynamicSolver(globals){
         //already at textureDimCreasesxtextureDimCreases
         gpuMath.step("updateCreaseGeo", ["u_lastPosition", "u_originalPosition", "u_creaseMeta2"], "u_creaseGeo");
 
-        if (globals.integrationType == "verlet"){
+        if (this.config.dynamicSolver.integrationType == "verlet"){
             gpuMath.setProgram("positionCalcVerlet");
-            gpuMath.setSize(textureDim, textureDim);
+            gpuMath.setSize(this.textureDim, this.textureDim);
             gpuMath.step("positionCalcVerlet", ["u_lastPosition", "u_lastLastPosition", "u_lastVelocity", "u_originalPosition", "u_externalForces",
                 "u_mass", "u_meta", "u_beamMeta", "u_creaseMeta", "u_nodeCreaseMeta", "u_normals", "u_theta", "u_creaseGeo",
                 "u_meta2", "u_nodeFaceMeta", "u_nominalTriangles"], "u_position");
@@ -155,7 +157,7 @@ function initDynamicSolver(globals){
             gpuMath.swapTextures("u_lastPosition", "u_lastLastPosition");
         } else {//euler
             gpuMath.setProgram("velocityCalc");
-            gpuMath.setSize(textureDim, textureDim);
+            gpuMath.setSize(this.textureDim, this.textureDim);
             gpuMath.step("velocityCalc", ["u_lastPosition", "u_lastVelocity", "u_originalPosition", "u_externalForces",
                 "u_mass", "u_meta", "u_beamMeta", "u_creaseMeta", "u_nodeCreaseMeta", "u_normals", "u_theta", "u_creaseGeo",
                 "u_meta2", "u_nodeFaceMeta", "u_nominalTriangles"], "u_velocity");
@@ -167,91 +169,90 @@ function initDynamicSolver(globals){
         gpuMath.swapTextures("u_position", "u_lastPosition");
     }
 
-    var $errorOutput = $("#globalError");
-
-    function getAvgPosition(){
+    getAvgPosition(){
         var xavg = 0;
         var yavg = 0;
         var zavg = 0;
-        for (var i=0;i<positions.length;i+=3){
-            xavg += positions[i];
-            yavg += positions[i+1];
-            zavg += positions[i+2];
+        for (var i=0;i<this.positions.length;i+=3){
+            xavg += this.positions[i];
+            yavg += this.positions[i+1];
+            zavg += this.positions[i+2];
         }
         var avgPosition = new THREE.Vector3(xavg, yavg, zavg);
-        avgPosition.multiplyScalar(3/positions.length);
+        avgPosition.multiplyScalar(3/this.positions.length);
         return avgPosition;
     }
 
-    function render(){
+    render(){
 
         var vectorLength = 4;
-        globals.gpuMath.setProgram("packToBytes");
-        globals.gpuMath.setUniformForProgram("packToBytes", "u_vectorLength", vectorLength, "1f");
-        globals.gpuMath.setUniformForProgram("packToBytes", "u_floatTextureDim", [textureDim, textureDim], "2f");
-        globals.gpuMath.setSize(textureDim*vectorLength, textureDim);
-        globals.gpuMath.step("packToBytes", ["u_lastPosition"], "outputBytes");
+        this.gpuMath.setProgram("packToBytes");
+        this.gpuMath.setUniformForProgram("packToBytes", "u_vectorLength", vectorLength, "1f");
+        this.gpuMath.setUniformForProgram("packToBytes", "u_floatTextureDim", [this.textureDim, this.textureDim], "2f");
+        this.gpuMath.setSize(this.textureDim*vectorLength, this.textureDim);
+        this.gpuMath.step("packToBytes", ["u_lastPosition"], "outputBytes");
 
-        if (globals.gpuMath.readyToRead()) {
-            var numPixels = nodes.length*vectorLength;
-            var height = Math.ceil(numPixels/(textureDim*vectorLength));
-            var pixels = new Uint8Array(height*textureDim*4*vectorLength);
-            globals.gpuMath.readPixels(0, 0, textureDim * vectorLength, height, pixels);
+        if (this.gpuMath.readyToRead()) {
+            var numPixels = this.nodes.length*vectorLength;
+            var height = Math.ceil(numPixels/(this.textureDim*vectorLength));
+            var pixels = new Uint8Array(height*this.textureDim*4*vectorLength);
+            this.gpuMath.readPixels(0, 0, this.textureDim * vectorLength, height, pixels);
             var parsedPixels = new Float32Array(pixels.buffer);
             var globalError = 0;
-            var shouldUpdateColors = globals.colorMode == "axialStrain";
-            for (var i = 0; i < nodes.length; i++) {
+            var shouldUpdateColors = config.view.colorMode == "axialStrain";
+            for (var i = 0; i < this.nodes.length; i++) {
                 var rgbaIndex = i * vectorLength;
                 var nodeError = parsedPixels[rgbaIndex+3]*100;
                 globalError += nodeError;
                 var nodePosition = new THREE.Vector3(parsedPixels[rgbaIndex], parsedPixels[rgbaIndex + 1], parsedPixels[rgbaIndex + 2]);
                 nodePosition.add(nodes[i]._originalPosition);
-                positions[3*i] = nodePosition.x;
-                positions[3*i+1] = nodePosition.y;
-                positions[3*i+2] = nodePosition.z;
+                this.positions[3*i] = nodePosition.x;
+                this.positions[3*i+1] = nodePosition.y;
+                this.positions[3*i+2] = nodePosition.z;
                 if (shouldUpdateColors){
-                    if (nodeError>globals.strainClip) nodeError = globals.strainClip;
-                    var scaledVal = (1-nodeError/globals.strainClip) * 0.7;
+                    if (nodeError>this.config.strainClip) nodeError = this.config.strainClip;
+                    var scaledVal = (1-nodeError/this.config.strainClip) * 0.7;
                     var color = new THREE.Color();
                     color.setHSL(scaledVal, 1, 0.5);
-                    colors[3*i] = color.r;
-                    colors[3*i+1] = color.g;
-                    colors[3*i+2] = color.b;
+                    this.colors[3*i] = color.r;
+                    this.colors[3*i+1] = color.g;
+                    this.colors[3*i+2] = color.b;
                 }
             }
-            $errorOutput.html((globalError/nodes.length).toFixed(7) + " %");
+            console.err((globalError/this.nodes.length).toFixed(7) + " %");
+            // $errorOutput.html((globalError/nodes.length).toFixed(7) + " %");
         } else {
             console.log("shouldn't be here");
         }
     }
 
-    function setSolveParams(){
-        var dt = calcDt();
-        $("#deltaT").html(dt);
-        globals.gpuMath.setProgram("thetaCalc");
-        globals.gpuMath.setUniformForProgram("thetaCalc", "u_dt", dt, "1f");
-        globals.gpuMath.setProgram("velocityCalc");
-        globals.gpuMath.setUniformForProgram("velocityCalc", "u_dt", dt, "1f");
-        globals.gpuMath.setProgram("positionCalcVerlet");
-        globals.gpuMath.setUniformForProgram("positionCalcVerlet", "u_dt", dt, "1f");
-        globals.gpuMath.setProgram("positionCalc");
-        globals.gpuMath.setUniformForProgram("positionCalc", "u_dt", dt, "1f");
-        globals.gpuMath.setProgram("velocityCalcVerlet");
-        globals.gpuMath.setUniformForProgram("velocityCalcVerlet", "u_dt", dt, "1f");
+    setSolveParams(){
+        var dt = this.calcDt();
+        // $("#deltaT").html(dt);
+        this.gpuMath.setProgram("thetaCalc");
+        this.gpuMath.setUniformForProgram("thetaCalc", "u_dt", dt, "1f");
+        this.gpuMath.setProgram("velocityCalc");
+        this.gpuMath.setUniformForProgram("velocityCalc", "u_dt", dt, "1f");
+        this.gpuMath.setProgram("positionCalcVerlet");
+        this.gpuMath.setUniformForProgram("positionCalcVerlet", "u_dt", dt, "1f");
+        this.gpuMath.setProgram("positionCalc");
+        this.gpuMath.setUniformForProgram("positionCalc", "u_dt", dt, "1f");
+        this.gpuMath.setProgram("velocityCalcVerlet");
+        this.gpuMath.setUniformForProgram("velocityCalcVerlet", "u_dt", dt, "1f");
         globals.controls.setDeltaT(dt);
     }
 
-    function calcDt(){
+    calcDt(){
         var maxFreqNat = 0;
-        _.each(edges, function(beam){
+        _.each(this.edges, function(beam){
             if (beam.getNaturalFrequency()>maxFreqNat) maxFreqNat = beam.getNaturalFrequency();
         });
         return (1/(2*Math.PI*maxFreqNat))*0.9;//0.9 of max delta t for good measure
     }
 
-    function initTexturesAndPrograms(gpuMath){
+    initTexturesAndPrograms(gpuMath){
 
-        var vertexShader = document.getElementById("vertexShader").text;
+        var vertexShader = fs.open("vertexShader").text;
 
         gpuMath.initTextureFromData("u_position", textureDim, textureDim, "FLOAT", position, true);
         gpuMath.initTextureFromData("u_lastPosition", textureDim, textureDim, "FLOAT", lastPosition, true);
@@ -282,19 +283,19 @@ function initDynamicSolver(globals){
         gpuMath.initTextureFromData("u_faceVertexIndices", textureDimFaces, textureDimFaces, "FLOAT", faceVertexIndices, true);
         gpuMath.initTextureFromData("u_nominalTriangles", textureDimFaces, textureDimFaces, "FLOAT", nominalTriangles, true);
 
-        gpuMath.createProgram("positionCalc", vertexShader, document.getElementById("positionCalcShader").text);
+        gpuMath.createProgram("positionCalc", vertexShader, fs.open("positionCalcShader"));
         gpuMath.setUniformForProgram("positionCalc", "u_velocity", 0, "1i");
         gpuMath.setUniformForProgram("positionCalc", "u_lastPosition", 1, "1i");
         gpuMath.setUniformForProgram("positionCalc", "u_mass", 2, "1i");
         gpuMath.setUniformForProgram("positionCalc", "u_textureDim", [textureDim, textureDim], "2f");
 
-        gpuMath.createProgram("velocityCalcVerlet", vertexShader, document.getElementById("velocityCalcVerletShader").text);
+        gpuMath.createProgram("velocityCalcVerlet", vertexShader, fs.open("velocityCalcVerletShader"));
         gpuMath.setUniformForProgram("velocityCalcVerlet", "u_position", 0, "1i");
         gpuMath.setUniformForProgram("velocityCalcVerlet", "u_lastPosition", 1, "1i");
         gpuMath.setUniformForProgram("velocityCalcVerlet", "u_mass", 2, "1i");
         gpuMath.setUniformForProgram("velocityCalcVerlet", "u_textureDim", [textureDim, textureDim], "2f");
 
-        gpuMath.createProgram("velocityCalc", vertexShader, document.getElementById("velocityCalcShader").text);
+        gpuMath.createProgram("velocityCalc", vertexShader, fs.open("velocityCalcShader"));
         gpuMath.setUniformForProgram("velocityCalc", "u_lastPosition", 0, "1i");
         gpuMath.setUniformForProgram("velocityCalc", "u_lastVelocity", 1, "1i");
         gpuMath.setUniformForProgram("velocityCalc", "u_originalPosition", 2, "1i");
@@ -321,7 +322,7 @@ function initDynamicSolver(globals){
         gpuMath.setUniformForProgram("velocityCalc", "u_faceStiffness", globals.faceStiffness, "1f");
         gpuMath.setUniformForProgram("velocityCalc", "u_calcFaceStrain", globals.calcFaceStrain, "1f");
 
-        gpuMath.createProgram("positionCalcVerlet", vertexShader, document.getElementById("positionCalcVerletShader").text);
+        gpuMath.createProgram("positionCalcVerlet", vertexShader, fs.open("positionCalcVerletShader"));
         gpuMath.setUniformForProgram("positionCalcVerlet", "u_lastPosition", 0, "1i");
         gpuMath.setUniformForProgram("positionCalcVerlet", "u_lastLastPosition", 1, "1i");
         gpuMath.setUniformForProgram("positionCalcVerlet", "u_lastVelocity", 2, "1i");
@@ -345,11 +346,11 @@ function initDynamicSolver(globals){
         gpuMath.setUniformForProgram("positionCalcVerlet", "u_textureDimNodeCreases", [textureDimNodeCreases, textureDimNodeCreases], "2f");
         gpuMath.setUniformForProgram("positionCalcVerlet", "u_textureDimNodeFaces", [textureDimNodeFaces, textureDimNodeFaces], "2f");
         gpuMath.setUniformForProgram("positionCalcVerlet", "u_creasePercent", globals.creasePercent, "1f");
-        gpuMath.setUniformForProgram("positionCalcVerlet", "u_axialStiffness", globals.axialStiffness, "1f");
-        gpuMath.setUniformForProgram("positionCalcVerlet", "u_faceStiffness", globals.faceStiffness, "1f");
-        gpuMath.setUniformForProgram("positionCalcVerlet", "u_calcFaceStrain", globals.calcFaceStrain, "1f");
+        gpuMath.setUniformForProgram("positionCalcVerlet", "u_axialStiffness", this.config.compliant_sim.axialStiffness, "1f");
+        gpuMath.setUniformForProgram("positionCalcVerlet", "u_faceStiffness", this.config.compliant_sim.faceStiffness, "1f");
+        gpuMath.setUniformForProgram("positionCalcVerlet", "u_calcFaceStrain", this.config.compliant_sim.calcFaceStrain, "1f");
 
-        gpuMath.createProgram("thetaCalc", vertexShader, document.getElementById("thetaCalcShader").text);
+        gpuMath.createProgram("thetaCalc", vertexShader, fs.open("thetaCalcShader"));
         gpuMath.setUniformForProgram("thetaCalc", "u_normals", 0, "1i");
         gpuMath.setUniformForProgram("thetaCalc", "u_lastTheta", 1, "1i");
         gpuMath.setUniformForProgram("thetaCalc", "u_creaseVectors", 2, "1i");
@@ -359,45 +360,45 @@ function initDynamicSolver(globals){
         gpuMath.setUniformForProgram("thetaCalc", "u_textureDimFaces", [textureDimFaces, textureDimFaces], "2f");
         gpuMath.setUniformForProgram("thetaCalc", "u_textureDimCreases", [textureDimCreases, textureDimCreases], "2f");
 
-        gpuMath.createProgram("normalCalc", vertexShader, document.getElementById("normalCalc").text);
+        gpuMath.createProgram("normalCalc", vertexShader, fs.open("normalCalc"));
         gpuMath.setUniformForProgram("normalCalc", "u_faceVertexIndices", 0, "1i");
         gpuMath.setUniformForProgram("normalCalc", "u_lastPosition", 1, "1i");
         gpuMath.setUniformForProgram("normalCalc", "u_originalPosition", 2, "1i");
         gpuMath.setUniformForProgram("normalCalc", "u_textureDim", [textureDim, textureDim], "2f");
         gpuMath.setUniformForProgram("normalCalc", "u_textureDimFaces", [textureDimFaces, textureDimFaces], "2f");
 
-        gpuMath.createProgram("packToBytes", vertexShader, document.getElementById("packToBytesShader").text);
+        gpuMath.createProgram("packToBytes", vertexShader, fs.open("packToBytesShader"));
         gpuMath.initTextureFromData("outputBytes", textureDim*4, textureDim, "UNSIGNED_BYTE", null, true);
         gpuMath.initFrameBufferForTexture("outputBytes", true);
         gpuMath.setUniformForProgram("packToBytes", "u_floatTextureDim", [textureDim, textureDim], "2f");
         gpuMath.setUniformForProgram("packToBytes", "u_floatTexture", 0, "1i");
 
-        gpuMath.createProgram("zeroTexture", vertexShader, document.getElementById("zeroTexture").text);
-        gpuMath.createProgram("zeroThetaTexture", vertexShader, document.getElementById("zeroThetaTexture").text);
+        gpuMath.createProgram("zeroTexture", vertexShader, fs.open("zeroTexture"));
+        gpuMath.createProgram("zeroThetaTexture", vertexShader, fs.open("zeroThetaTexture"));
         gpuMath.setUniformForProgram("zeroThetaTexture", "u_theta", 0, "1i");
         gpuMath.setUniformForProgram("zeroThetaTexture", "u_textureDimCreases", [textureDimCreases, textureDimCreases], "2f");
 
-        gpuMath.createProgram("centerTexture", vertexShader, document.getElementById("centerTexture").text);
+        gpuMath.createProgram("centerTexture", vertexShader, fs.open("centerTexture"));
         gpuMath.setUniformForProgram("centerTexture", "u_lastPosition", 0, "1i");
         gpuMath.setUniformForProgram("centerTexture", "u_textureDim", [textureDim, textureDim], "2f");
 
-        gpuMath.createProgram("copyTexture", vertexShader, document.getElementById("copyTexture").text);
+        gpuMath.createProgram("copyTexture", vertexShader, fs.open("copyTexture"));
         gpuMath.setUniformForProgram("copyTexture", "u_orig", 0, "1i");
         gpuMath.setUniformForProgram("copyTexture", "u_textureDim", [textureDim, textureDim], "2f");
 
-        gpuMath.createProgram("updateCreaseGeo", vertexShader, document.getElementById("updateCreaseGeo").text);
+        gpuMath.createProgram("updateCreaseGeo", vertexShader, fs.open("updateCreaseGeo"));
         gpuMath.setUniformForProgram("updateCreaseGeo", "u_lastPosition", 0, "1i");
         gpuMath.setUniformForProgram("updateCreaseGeo", "u_originalPosition", 1, "1i");
         gpuMath.setUniformForProgram("updateCreaseGeo", "u_creaseMeta2", 2, "1i");
         gpuMath.setUniformForProgram("updateCreaseGeo", "u_textureDim", [textureDim, textureDim], "2f");
         gpuMath.setUniformForProgram("updateCreaseGeo", "u_textureDimCreases", [textureDimCreases, textureDimCreases], "2f");
 
-        gpuMath.setSize(textureDim, textureDim);
+        gpuMath.setSize(this.textureDim, this.textureDim);
 
-        programsInited = true;
+        this.programsInited = true;
     }
 
-    function calcTextureSize(numNodes){
+    calcTextureSize(numNodes){
         if (numNodes == 1) return 2;
         for (var i=0;i<numNodes;i++){
             if (Math.pow(2, 2*i) >= numNodes){
@@ -408,15 +409,15 @@ function initDynamicSolver(globals){
         return 2;
     }
 
-    function updateMaterials(initing){
+    updateMaterials(initing){
         var index = 0;
-        for (var i=0;i<nodes.length;i++){
+        for (var i=0;i<this.nodes.length;i++){
             if (initing) {
-                meta[4*i] = index;
-                meta[4*i+1] = nodes[i].numBeams();
+                this.meta[4*i] = index;
+                this.meta[4*i+1] = this.nodes[i].numBeams();
             }
-            for (var j=0;j<nodes[i].beams.length;j++){
-                var beam = nodes[i].beams[j];
+            for (var j=0;j<this.nodes[i].beams.length;j++){
+                var beam = this.nodes[i].beams[j];
                 beamMeta[4*index] = beam.getK();
                 beamMeta[4*index+1] = beam.getD();
                 if (initing) {
@@ -426,242 +427,235 @@ function initDynamicSolver(globals){
                 index+=1;
             }
         }
-        globals.gpuMath.initTextureFromData("u_beamMeta", textureDimEdges, textureDimEdges, "FLOAT", beamMeta, true);
+        this.gpuMath.initTextureFromData("u_beamMeta", this.textureDimEdges, this.textureDimEdges, "FLOAT", beamMeta, true);
 
 
-        if (programsInited) {
-            globals.gpuMath.setProgram("velocityCalc");
-            globals.gpuMath.setUniformForProgram("velocityCalc", "u_axialStiffness", globals.axialStiffness, "1f");
-            globals.gpuMath.setUniformForProgram("velocityCalc", "u_faceStiffness", globals.faceStiffness, "1f");
-            globals.gpuMath.setProgram("positionCalcVerlet");
-            globals.gpuMath.setUniformForProgram("positionCalcVerlet", "u_axialStiffness", globals.axialStiffness, "1f");
-            globals.gpuMath.setUniformForProgram("positionCalcVerlet", "u_faceStiffness", globals.faceStiffness, "1f");
-            setSolveParams();//recalc dt
+        if (this.programsInited) {
+            this.gpuMath.setProgram("velocityCalc");
+            this.gpuMath.setUniformForProgram("velocityCalc", "u_axialStiffness", config.compliant_sim.axialStiffness, "1f");
+            this.gpuMath.setUniformForProgram("velocityCalc", "u_faceStiffness", config.compliant_sim.faceStiffness, "1f");
+            this.gpuMath.setProgram("positionCalcVerlet");
+            this.gpuMath.setUniformForProgram("positionCalcVerlet", "u_axialStiffness", config.compliant_sim.axialStiffness, "1f");
+            this.gpuMath.setUniformForProgram("positionCalcVerlet", "u_faceStiffness", config.compliant_sim.faceStiffness, "1f");
+            this.setSolveParams();//recalc dt
         }
     }
 
-    function updateExternalForces(){
-        for (var i=0;i<nodes.length;i++){
-            var externalForce = nodes[i].getExternalForce();
+    updateExternalForces(){
+        for (var i=0;i<this.nodes.length;i++){
+            var externalForce = this.nodes[i].getExternalForce();
             externalForces[4*i] = externalForce.x;
             externalForces[4*i+1] = externalForce.y;
             externalForces[4*i+2] = externalForce.z;
         }
-        globals.gpuMath.initTextureFromData("u_externalForces", textureDim, textureDim, "FLOAT", externalForces, true);
+        this.gpuMath.initTextureFromData("u_externalForces", this.textureDim, this.textureDim, "FLOAT", externalForces, true);
     }
 
-    function updateFixed(){
-        for (var i=0;i<nodes.length;i++){
-            mass[4*i+1] = (nodes[i].isFixed() ? 1 : 0);
+    updateFixed(){
+        for (var i=0;i<this.nodes.length;i++){
+            this.mass[4*i+1] = (this.nodes[i].isFixed() ? 1 : 0);
         }
-        globals.gpuMath.initTextureFromData("u_mass", textureDim, textureDim, "FLOAT", mass, true);
+        this.gpuMath.initTextureFromData("u_mass", this.textureDim, this.textureDim, "FLOAT", this.mass, true);
     }
 
-    function updateOriginalPosition(){
-        for (var i=0;i<nodes.length;i++){
-            var origPosition = nodes[i].getOriginalPosition();
+    updateOriginalPosition(){
+        for (var i=0;i<this.nodes.length;i++){
+            var origPosition = this.nodes[i].getOriginalPosition();
             originalPosition[4*i] = origPosition.x;
             originalPosition[4*i+1] = origPosition.y;
             originalPosition[4*i+2] = origPosition.z;
         }
-        globals.gpuMath.initTextureFromData("u_originalPosition", textureDim, textureDim, "FLOAT", originalPosition, true);
+        this.gpuMath.initTextureFromData("u_originalPosition", this.textureDim, this.textureDim, "FLOAT", originalPosition, true);
     }
 
-    function updateCreaseVectors(){
-        for (var i=0;i<creases.length;i++){
+    updateCreaseVectors(){
+        for (var i=0;i<this.creases.length;i++){
             var rgbaIndex = i*4;
-            var nodes = creases[i].edge.nodes;
+            var nodes = this.creases[i].edge.nodes;
             // this.vertices[1].clone().sub(this.vertices[0]);
-            creaseVectors[rgbaIndex] = nodes[0].getIndex();
-            creaseVectors[rgbaIndex+1] = nodes[1].getIndex();
+            this.creaseVectors[rgbaIndex] = nodes[0].getIndex();
+            this.creaseVectors[rgbaIndex+1] = nodes[1].getIndex();
         }
-        globals.gpuMath.initTextureFromData("u_creaseVectors", textureDimCreases, textureDimCreases, "FLOAT", creaseVectors, true);
+        this.gpuMath.initTextureFromData("u_creaseVectors", this.textureDimCreases, this.textureDimCreases, "FLOAT", this.creaseVectors, true);
     }
 
-    function updateCreasesMeta(initing){
-        for (var i=0;i<creases.length;i++){
-            var crease = creases[i];
-            creaseMeta[i*4] = crease.getK();
+    updateCreasesMeta(initing){
+        for (var i=0;i<this.creases.length;i++){
+            var crease = this.creases[i];
+            this.creaseMeta[i*4] = crease.getK();
             // creaseMeta[i*4+1] = crease.getD();
-            if (initing) creaseMeta[i*4+2] = crease.getTargetTheta();
+            if (initing) this.creaseMeta[i*4+2] = crease.getTargetTheta();
         }
-        globals.gpuMath.initTextureFromData("u_creaseMeta", textureDimCreases, textureDimCreases, "FLOAT", creaseMeta, true);
+        this.gpuMath.initTextureFromData("u_creaseMeta", this.textureDimCreases, this.textureDimCreases, "FLOAT", creaseMeta, true);
     }
 
-    function updateLastPosition(){
-        for (var i=0;i<nodes.length;i++){
-            var _position = nodes[i].getRelativePosition();
-            lastPosition[4*i] = _position.x;
-            lastPosition[4*i+1] = _position.y;
-            lastPosition[4*i+2] = _position.z;
+    updateLastPosition(){
+        for (var i=0;i<this.nodes.length;i++){
+            var _position = this.nodes[i].getRelativePosition();
+            this.lastPosition[4*i] = _position.x;
+            this.lastPosition[4*i+1] = _position.y;
+            this.lastPosition[4*i+2] = _position.z;
         }
-        globals.gpuMath.initTextureFromData("u_lastPosition", textureDim, textureDim, "FLOAT", lastPosition, true);
-        globals.gpuMath.initFrameBufferForTexture("u_lastPosition", true);
+        this.gpuMath.initTextureFromData("u_lastPosition", this.textureDim, this.textureDim, "FLOAT", this.lastPosition, true);
+        this.gpuMath.initFrameBufferForTexture("u_lastPosition", true);
 
     }
 
-    function setCreasePercent(percent){
-        if (!programsInited) return;
-        globals.gpuMath.setProgram("velocityCalc");
-        globals.gpuMath.setUniformForProgram("velocityCalc", "u_creasePercent", percent, "1f");
-        globals.gpuMath.setProgram("positionCalcVerlet");
-        globals.gpuMath.setUniformForProgram("positionCalcVerlet", "u_creasePercent", percent, "1f");
+    setCreasePercent(percent){
+        if (!this.programsInited) return;
+        this.gpuMath.setProgram("velocityCalc");
+        this.gpuMath.setUniformForProgram("velocityCalc", "u_creasePercent", percent, "1f");
+        this.gpuMath.setProgram("positionCalcVerlet");
+        this.gpuMath.setUniformForProgram("positionCalcVerlet", "u_creasePercent", percent, "1f");
     }
 
-    function initTypedArrays(){
+    initTypedArrays(){
 
-        textureDim = calcTextureSize(nodes.length);
+        this.textureDim = this.calcTextureSize(this.nodes.length);
 
         var numNodeFaces = 0;
         var nodeFaces = [];
-        for (var i=0;i<nodes.length;i++){
+        for (var i=0;i<this.nodes.length;i++){
             nodeFaces.push([]);
-            for (var j=0;j<faces.length;j++){
-                if (faces[j].indexOf(i)>=0) {
+            for (var j=0;j<this.faces.length;j++){
+                if (this.faces[j].indexOf(i)>=0) {
                     nodeFaces[i].push(j);
                     numNodeFaces++;
                 }
             }
         }
-        textureDimNodeFaces = calcTextureSize(numNodeFaces);
+        this.textureDimNodeFaces = this.calcTextureSize(numNodeFaces);
 
         var numEdges = 0;
-        for (var i=0;i<nodes.length;i++){
-            numEdges += nodes[i].numBeams();
+        for (var i=0;i<this.nodes.length;i++){
+            numEdges += this.nodes[i].numBeams();
         }
-        textureDimEdges = calcTextureSize(numEdges);
+        this.textureDimEdges = this.calcTextureSize(numEdges);
 
-        var numCreases = creases.length;
-        textureDimCreases = calcTextureSize(numCreases);
+        var numCreases = this.creases.length;
+        this.textureDimCreases = this.calcTextureSize(numCreases);
 
         var numNodeCreases = 0;
-        for (var i=0;i<nodes.length;i++){
-            numNodeCreases += nodes[i].numCreases();
+        for (var i=0;i<this.nodes.length;i++){
+            numNodeCreases += this.nodes[i].numCreases();
         }
         numNodeCreases += numCreases*2;//reactions
-        textureDimNodeCreases = calcTextureSize(numNodeCreases);
+        this.textureDimNodeCreases = this.calcTextureSize(numNodeCreases);
 
-        var numFaces = faces.length;
-        textureDimFaces = calcTextureSize(numFaces);
+        var numFaces = this.faces.length;
+        this.textureDimFaces = this.calcTextureSize(numFaces);
 
-        originalPosition = new Float32Array(textureDim*textureDim*4);
-        position = new Float32Array(textureDim*textureDim*4);
-        lastPosition = new Float32Array(textureDim*textureDim*4);
-        lastLastPosition = new Float32Array(textureDim*textureDim*4);
-        velocity = new Float32Array(textureDim*textureDim*4);
-        lastVelocity = new Float32Array(textureDim*textureDim*4);
-        externalForces = new Float32Array(textureDim*textureDim*4);
-        mass = new Float32Array(textureDim*textureDim*4);
-        meta = new Float32Array(textureDim*textureDim*4);
-        meta2 = new Float32Array(textureDim*textureDim*4);
-        beamMeta = new Float32Array(textureDimEdges*textureDimEdges*4);
+        this.originalPosition = new Float32Array(textureDim*textureDim*4);
+        this.position = new Float32Array(textureDim*textureDim*4);
+        this.lastPosition = new Float32Array(textureDim*textureDim*4);
+        this.lastLastPosition = new Float32Array(textureDim*textureDim*4);
+        this.velocity = new Float32Array(textureDim*textureDim*4);
+        this.lastVelocity = new Float32Array(textureDim*textureDim*4);
+        this.externalForces = new Float32Array(textureDim*textureDim*4);
+        this.mass = new Float32Array(textureDim*textureDim*4);
+        this.meta = new Float32Array(textureDim*textureDim*4);
+        this.meta2 = new Float32Array(textureDim*textureDim*4);
+        this.beamMeta = new Float32Array(textureDimEdges*textureDimEdges*4);
 
-        normals = new Float32Array(textureDimFaces*textureDimFaces*4);
-        faceVertexIndices = new Float32Array(textureDimFaces*textureDimFaces*4);
-        creaseMeta = new Float32Array(textureDimCreases*textureDimCreases*4);
-        nodeFaceMeta = new Float32Array(textureDimNodeFaces*textureDimNodeFaces*4);
-        nominalTriangles = new Float32Array(textureDimFaces*textureDimFaces*4);
-        nodeCreaseMeta = new Float32Array(textureDimNodeCreases*textureDimNodeCreases*4);
-        creaseMeta2 = new Float32Array(textureDimCreases*textureDimCreases*4);
-        creaseGeo = new Float32Array(textureDimCreases*textureDimCreases*4);
-        creaseVectors = new Float32Array(textureDimCreases*textureDimCreases*4);
-        theta = new Float32Array(textureDimCreases*textureDimCreases*4);
-        lastTheta = new Float32Array(textureDimCreases*textureDimCreases*4);
+        this.normals = new Float32Array(textureDimFaces*textureDimFaces*4);
+        this.faceVertexIndices = new Float32Array(textureDimFaces*textureDimFaces*4);
+        this.creaseMeta = new Float32Array(textureDimCreases*textureDimCreases*4);
+        this.nodeFaceMeta = new Float32Array(textureDimNodeFaces*textureDimNodeFaces*4);
+        this.nominalTriangles = new Float32Array(textureDimFaces*textureDimFaces*4);
+        this.nodeCreaseMeta = new Float32Array(textureDimNodeCreases*textureDimNodeCreases*4);
+        this.creaseMeta2 = new Float32Array(textureDimCreases*textureDimCreases*4);
+        this.creaseGeo = new Float32Array(textureDimCreases*textureDimCreases*4);
+        this.creaseVectors = new Float32Array(textureDimCreases*textureDimCreases*4);
+        this.theta = new Float32Array(textureDimCreases*textureDimCreases*4);
+        this.lastTheta = new Float32Array(textureDimCreases*textureDimCreases*4);
 
-        for (var i=0;i<faces.length;i++){
-            var face = faces[i];
-            faceVertexIndices[4*i] = face[0];
-            faceVertexIndices[4*i+1] = face[1];
-            faceVertexIndices[4*i+2] = face[2];
+        for (var i=0;i<this.faces.length;i++){
+            var face = this.faces[i];
+            this.faceVertexIndices[4*i] = face[0];
+            this.faceVertexIndices[4*i+1] = face[1];
+            this.faceVertexIndices[4*i+2] = face[2];
 
-            var a = nodes[face[0]].getOriginalPosition();
-            var b = nodes[face[1]].getOriginalPosition();
-            var c = nodes[face[2]].getOriginalPosition();
+            var a = this.nodes[face[0]].getOriginalPosition();
+            var b = this.nodes[face[1]].getOriginalPosition();
+            var c = this.nodes[face[2]].getOriginalPosition();
             var ab = (b.clone().sub(a)).normalize();
             var ac = (c.clone().sub(a)).normalize();
             var bc = (c.clone().sub(b)).normalize();
-            nominalTriangles[4*i] = Math.acos(ab.dot(ac));
-            nominalTriangles[4*i+1] = Math.acos(-1*ab.dot(bc));
-            nominalTriangles[4*i+2] = Math.acos(ac.dot(bc));
+            this.nominalTriangles[4*i] = Math.acos(ab.dot(ac));
+            this.nominalTriangles[4*i+1] = Math.acos(-1*ab.dot(bc));
+            this.nominalTriangles[4*i+2] = Math.acos(ac.dot(bc));
 
-            if (Math.abs(nominalTriangles[4*i]+nominalTriangles[4*i+1]+nominalTriangles[4*i+2]-Math.PI)>0.1){
+            if (Math.abs(this.nominalTriangles[4*i]+this.nominalTriangles[4*i+1]+this.nominalTriangles[4*i+2]-Math.PI)>0.1){
                 console.warn("bad angles");
             }
         }
 
 
-        for (var i=0;i<textureDim*textureDim;i++){
-            mass[4*i+1] = 1;//set all fixed by default
+        for (var i=0;i<this.textureDim*this.textureDim;i++){
+            this.mass[4*i+1] = 1;//set all fixed by default
         }
 
-        for (var i=0;i<textureDimCreases*textureDimCreases;i++){
+        for (var i=0;i<this.textureDimCreases*this.textureDimCreases;i++){
             if (i >= numCreases){
-                lastTheta[i*4+2] = -1;
-                lastTheta[i*4+3] = -1;
+                this.lastTheta[i*4+2] = -1;
+                this.lastTheta[i*4+3] = -1;
                 continue;
             }
-            lastTheta[i*4+2] = creases[i].getNormal1Index();
-            lastTheta[i*4+3] = creases[i].getNormal2Index();
+            this.lastTheta[i*4+2] = this.creases[i].getNormal1Index();
+            this.lastTheta[i*4+3] = this.creases[i].getNormal2Index();
         }
 
         var index = 0;
-        for (var i=0;i<nodes.length;i++){
-            meta2[4*i] = index;
+        for (var i=0;i<this.nodes.length;i++){
+            this.meta2[4*i] = index;
             var num = nodeFaces[i].length;
-            meta2[4*i+1] = num;
+            this.meta2[4*i+1] = num;
             for (var j=0;j<num;j++){
                 var _index = (index+j)*4;
-                var face = faces[nodeFaces[i][j]];
-                nodeFaceMeta[_index] = nodeFaces[i][j];
-                nodeFaceMeta[_index+1] = face[0] == i ? -1 : face[0];
-                nodeFaceMeta[_index+2] = face[1] == i ? -1 : face[1];
-                nodeFaceMeta[_index+3] = face[2] == i ? -1 : face[2];
+                var face = this.faces[nodeFaces[i][j]];
+                this.nodeFaceMeta[_index] = nodeFaces[i][j];
+                this.nodeFaceMeta[_index+1] = face[0] == i ? -1 : face[0];
+                this.nodeFaceMeta[_index+2] = face[1] == i ? -1 : face[1];
+                this.nodeFaceMeta[_index+3] = face[2] == i ? -1 : face[2];
             }
             index+=num;
         }
 
         var index = 0;
-        for (var i=0;i<nodes.length;i++){
-            mass[4*i] = nodes[i].getSimMass();
-            meta[i*4+2] = index;
-            var nodeCreases = nodes[i].creases;
-            var nodeInvCreases = nodes[i].invCreases;//nodes attached to crease move in opposite direction
+        for (var i=0;i<this.nodes.length;i++){
+            this.mass[4*i] = this.nodes[i].getSimMass();
+            this.meta[i*4+2] = index;
+            var nodeCreases = this.nodes[i].creases;
+            var nodeInvCreases = this.nodes[i].invCreases;//nodes attached to crease move in opposite direction
             // console.log(nodeInvCreases);
-            meta[i*4+3] = nodeCreases.length + nodeInvCreases.length;
+            this.meta[i*4+3] = nodeCreases.length + nodeInvCreases.length;
             for (var j=0;j<nodeCreases.length;j++){
-                nodeCreaseMeta[index*4] = nodeCreases[j].getIndex();
-                nodeCreaseMeta[index*4+1] = nodeCreases[j].getNodeIndex(nodes[i]);//type 1, 2, 3, 4
+                this.nodeCreaseMeta[index*4] = nodeCreases[j].getIndex();
+                this.nodeCreaseMeta[index*4+1] = nodeCreases[j].getNodeIndex(this.nodes[i]);//type 1, 2, 3, 4
                 index++;
             }
             for (var j=0;j<nodeInvCreases.length;j++){
-                nodeCreaseMeta[index*4] = nodeInvCreases[j].getIndex();
-                nodeCreaseMeta[index*4+1] = nodeInvCreases[j].getNodeIndex(nodes[i]);//type 1, 2, 3, 4
+                this.nodeCreaseMeta[index*4] = nodeInvCreases[j].getIndex();
+                this.nodeCreaseMeta[index*4+1] = nodeInvCreases[j].getNodeIndex(this.nodes[i]);//type 1, 2, 3, 4
                 index++;
             }
         }
-        for (var i=0;i<creases.length;i++){
-            var crease = creases[i];
-            creaseMeta2[i*4] = crease.node1.getIndex();
-            creaseMeta2[i*4+1] = crease.node2.getIndex();
-            creaseMeta2[i*4+2] = crease.edge.nodes[0].getIndex();
-            creaseMeta2[i*4+3] = crease.edge.nodes[1].getIndex();
+        for (var i=0;i<this.creases.length;i++){
+            var crease = this.creases[i];
+            this.creaseMeta2[i*4] = crease.node1.getIndex();
+            this.creaseMeta2[i*4+1] = crease.node2.getIndex();
+            this.creaseMeta2[i*4+2] = crease.edge.nodes[0].getIndex();
+            this.creaseMeta2[i*4+3] = crease.edge.nodes[1].getIndex();
             index++;
         }
 
-        updateOriginalPosition();
-        updateMaterials(true);
-        updateFixed();
-        updateExternalForces();
-        updateCreasesMeta(true);
-        updateCreaseVectors();
-        setCreasePercent(globals.creasePercent);
+        this.updateOriginalPosition();
+        this.updateMaterials(true);
+        this.updateFixed();
+        this.updateExternalForces();
+        this.updateCreasesMeta(true);
+        this.updateCreaseVectors();
+        this.setCreasePercent(globals.creasePercent);
     }
 
-    return {
-        syncNodesAndEdges: syncNodesAndEdges,
-        updateFixed: updateFixed,
-        solve: solve,
-        render: render,
-        reset: reset
-    }
 }
