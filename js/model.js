@@ -3,56 +3,60 @@
  * nodified by freestraws on 9/29/2019
  */
 
-//model updates object3d geometry and materials
+import dynamicSolver from "dynamicSolver"
+import staticSolver from "staticSolver"
+import rigidSolver from "rigidSolver"
 
-module.exports = Model = class {
+//model updates object3d geometry and materials
+export default Model = class {
     constructor(config){
-        this.config = config
-        if (this.config.vis_3d.simType == "dynamic") this.solver = global.dynamicSolver
-        else if (this.config.vis_3d.simType == "static") this.solver = global.staticSolver
-        else this.solver = global.rigidSolver
-        this.material, this.material2, this.geometry
-        this.frontside = new THREE.Mesh() //front face of mesh
-        this.backside = new THREE.Mesh() //back face of mesh (different color)
-        backside.visible = false;
+        this.config = config;
+        this.creasePercent = 0;
+        if (this.config.vis_3d.simType == "dynamic") this.solver = new dynamicSolver();
+        else if (this.config.vis_3d.simType == "static") this.solver = new staticSolver();
+        else this.solver = new rigidSolver();
+        this.material, this.material2, this.geometry;
+        this.frontside = new THREE.Mesh(); //front face of mesh
+        this.backside = new THREE.Mesh(); //back face of mesh (different color)
+        this.backside.visible = false;
     
-        this.lineMaterial = new THREE.LineBasicMaterial({color: 0x000000, linewidth: 1})
-        this.hingeLines = new THREE.LineSegments(null, lineMaterial)
-        this.mountainLines = new THREE.LineSegments(null, lineMaterial)
-        this.valleyLines = new THREE.LineSegments(null, lineMaterial)
-        this.cutLines = new THREE.LineSegments(null, lineMaterial)
-        this.facetLines = new THREE.LineSegments(null, lineMaterial)
-        this.borderLines = new THREE.LineSegments(null, lineMaterial)
+        this.lineMaterial = new THREE.LineBasicMaterial({color: 0x000000, linewidth: 1});
+        this.hingeLines = new THREE.LineSegments(null, this.lineMaterial);
+        this.mountainLines = new THREE.LineSegments(null, this.lineMaterial);
+        this.valleyLines = new THREE.LineSegments(null, this.lineMaterial);
+        this.cutLines = new THREE.LineSegments(null, this.lineMaterial);
+        this.facetLines = new THREE.LineSegments(null, this.lineMaterial);
+        this.borderLines = new THREE.LineSegments(null, this.lineMaterial);
     
         this.lines = {
-            U: hingeLines,
-            M: mountainLines,
-            V: valleyLines,
-            C: cutLines,
-            F: facetLines,
-            B: borderLines
-        }
+            U: this.hingeLines,
+            M: this.mountainLines,
+            V: this.valleyLines,
+            C: this.cutLines,
+            F: this.facetLines,
+            B: this.borderLines
+        };
 
-        this.positions //place to store buffer geo vertex data
-        this.colors //place to store buffer geo vertex colors
-        this.indices
-        this.nodes = []
-        this.faces = []
-        this.edges = []
-        this.creases = []
-        this.vertices = [] //indexed vertices array
-        this.fold, this.creaseParams
+        this.positions; //place to store buffer geo vertex data
+        this.colors; //place to store buffer geo vertex colors
+        this.indices;
+        this.nodes = [];
+        this.faces = [];
+        this.edges = [];
+        this.creases = [];
+        this.vertices = []; //indexed vertices array
+        this.fold, this.creaseParams;
     
-        this.nextCreaseParams, nextFold //todo only nextFold, nextCreases?
+        this.nextCreaseParams, this.nextFold; //todo only nextFold, nextCreases?
     
-        this.inited = false
+        this.inited = false;
     
-        this.clearGeometries()
-        this.setMeshMaterial()
-        // globals.threeView.sceneAddModel(frontside)
-        // globals.threeView.sceneAddModel(backside)
+        this.clearGeometries();
+        this.setMeshMaterial();
+        // globals.threeView.sceneAddModel(frontside);
+        // globals.threeView.sceneAddModel(backside);
         // _.each(this.lines, function(line){
-        //     globals.threeView.sceneAddModel(line)
+        //     globals.threeView.sceneAddModel(line);
         // });
     }
 
@@ -66,7 +70,7 @@ module.exports = Model = class {
         this.geometry = new THREE.BufferGeometry();
         this.frontside.geometry = this.geometry;
         this.backside.geometry = this.geometry;
-        // geometry.verticesNeedUpdate = true;
+        // this.geometry.verticesNeedUpdate = true;
         this.geometry.dynamic = true;
 
         _.each(this.lines, function(line){
@@ -83,11 +87,16 @@ module.exports = Model = class {
         });
     }
 
+    setCreasePercent(percent){
+        percent *= 100;
+        this.creasePercent = percent;
+    }
+
     setMeshMaterial() {
         var polygonOffset = 0.5;
         if (this.config.view.colorMode == "normal") {
             this.material = new THREE.MeshNormalMaterial({
-                flatShading:true,
+                flatShading: true,
                 side: THREE.DoubleSide,
                 polygonOffset: true,
                 polygonOffsetFactor: polygonOffset, // positive value pushes polygon further away
@@ -96,7 +105,8 @@ module.exports = Model = class {
             this.backside.visible = false;
         } else if (this.config.view.colorMode == "axialStrain"){
             this.material = new THREE.MeshBasicMaterial({
-                vertexColors: THREE.VertexColors, side:THREE.DoubleSide,
+                vertexColors: THREE.VertexColors,
+                side: THREE.DoubleSide,
                 polygonOffset: true,
                 polygonOffsetFactor: polygonOffset, // positive value pushes polygon further away
                 polygonOffsetUnits: 1
@@ -108,14 +118,14 @@ module.exports = Model = class {
             }
         } else {
             this.material = new THREE.MeshPhongMaterial({
-                flatShading:true,
-                side:THREE.FrontSide,
+                flatShading: true,
+                side: THREE.FrontSide,
                 polygonOffset: true,
                 polygonOffsetFactor: polygonOffset, // positive value pushes polygon further away
                 polygonOffsetUnits: 1
             });
             this.material2 = new THREE.MeshPhongMaterial({
-                flatShading:true,
+                flatShading: true,
                 side: THREE.BackSide,
                 polygonOffset: true,
                 polygonOffsetFactor: polygonOffset, // positive value pushes polygon further away
@@ -185,24 +195,24 @@ module.exports = Model = class {
 
     startSolver(){
         global.threeView.startAnimation();
-    } 
+    }
 
     getSolver(){
-        return this.solver
+        return this.solver;
     }
 
     buildModel(fold, creaseParams){
 
         if (fold.vertices_coords.length == 0) {
-            globals.warn("No geometry found.");
+            config.warn("No geometry found.");
             return;
         }
         if (fold.faces_vertices.length == 0) {
-            globals.warn("No faces found, try adjusting import vertex merge tolerance.");
+            config.warn("No faces found, try adjusting import vertex merge tolerance.");
             return;
         }
         if (fold.edges_vertices.length == 0) {
-            globals.warn("No edges found.");
+            config.warn("No edges found.");
             return;
         }
 
@@ -219,15 +229,15 @@ module.exports = Model = class {
     }
 
     sync(){
-        for (var i=0;i<this.nodes.length;i++){
+        for (var i=0; i<this.nodes.length; i++){
             this.nodes[i].destroy();
         }
 
-        for (var i=0;i<this.edges.length;i++){
+        for (var i=0; i<this.edges.length; i++){
             this.edges[i].destroy();
         }
 
-        for (var i=0;i<this.creases.length;i++){
+        for (var i=0; i<this.creases.length; i++){
             this.creases[i].destroy();
         }
 
@@ -236,27 +246,27 @@ module.exports = Model = class {
         this.edges = [];
         this.faces = this.fold.faces_vertices;
         this.creases = [];
-        this.creaseParams = nextCreaseParams;
+        this.creaseParams = this.nextCreaseParams;
         var _edges = this.fold.edges_vertices;
 
         var _vertices = [];
-        for (var i=0;i<this.fold.vertices_coords.length;i++){
+        for (var i=0; i<this.fold.vertices_coords.length; i++){
             var vertex = this.fold.vertices_coords[i];
             _vertices.push(new THREE.Vector3(vertex[0], vertex[1], vertex[2]));
         }
 
-        for (var i=0;i<_vertices.length;i++){
+        for (var i=0; i<_vertices.length; i++){
             this.nodes.push(new Node(_vertices[i].clone(), this.nodes.length));
         }
         // _nodes[_faces[0][0]].setFixed(true);
         // _nodes[_faces[0][1]].setFixed(true);
         // _nodes[_faces[0][2]].setFixed(true);
 
-        for (var i=0;i<_edges.length;i++) {
+        for (var i=0; i<_edges.length; i++) {
             this.edges.push(new Beam([this.nodes[_edges[i][0]], this.nodes[_edges[i][1]]]));
         }
 
-        for (var i=0;i<this.creaseParams.length;i++) {//allCreaseParams.length
+        for (var i=0; i<this.creaseParams.length; i++) {//allCreaseParams.length
             var _creaseParams = this.creaseParams[i];//face1Ind, vert1Ind, face2Ind, ver2Ind, edgeInd, angle
             var type = _creaseParams[5]!=0 ? 1:0;
             //edge, face1Index, face2Index, targetTheta, type, node1, node2, index
@@ -264,7 +274,7 @@ module.exports = Model = class {
         }
 
         this.vertices = [];
-        for (var i=0;i<this.nodes.length;i++){
+        for (var i=0; i<this.nodes.length; i++){
             this.vertices.push(this.nodes[i].getOriginalPosition());
         }
 
@@ -280,12 +290,12 @@ module.exports = Model = class {
         this.colors = new Float32Array(this.vertices.length*3);
         this.indices = new Uint16Array(this.faces.length*3);
 
-        for (var i=0;i<this.vertices.length;i++){
+        for (var i=0; i<this.vertices.length; i++){
             this.positions[3*i] = this.vertices[i].x;
             this.positions[3*i+1] = this.vertices[i].y;
             this.positions[3*i+2] = this.vertices[i].z;
         }
-        for (var i=0;i<this.faces.length;i++){
+        for (var i=0; i<this.faces.length; i++){
             var face = this.faces[i];
             this.indices[3*i] = face[0];
             this.indices[3*i+1] = face[1];
@@ -304,7 +314,8 @@ module.exports = Model = class {
             F: [],
             C: []
         };
-        for (var i=0;i<this.fold.edges_assignment.length;i++){
+        
+        for (var i=0; i<this.fold.edges_assignment.length; i++){
             var edge = this.fold.edges_vertices[i];
             var assignment = this.fold.edges_assignment[i];
             lineIndices[assignment].push(edge[0]);
@@ -313,7 +324,7 @@ module.exports = Model = class {
         _.each(this.lines, function(line, key){
             var indicesArray = lineIndices[key];
             var indices = new Uint16Array(indicesArray.length);
-            for (var i=0;i<indicesArray.length;i++){
+            for (var i=0; i<indicesArray.length; i++){
                 indices[i] = indicesArray[i];
             }
             this.lines[key].geometry.addAttribute('position', positionsAttribute);
@@ -328,9 +339,9 @@ module.exports = Model = class {
         this.geometry.addAttribute('position', positionsAttribute);
         this.geometry.addAttribute('color', new THREE.BufferAttribute(colors, 3));
         this.geometry.setIndex(new THREE.BufferAttribute(indices, 1));
-        // geometry.attributes.position.needsUpdate = true;
-        // geometry.index.needsUpdate = true;
-        // geometry.verticesNeedUpdate = true;
+        // this.geometry.attributes.position.needsUpdate = true;
+        // this.geometry.index.needsUpdate = true;
+        // this.geometry.verticesNeedUpdate = true;
         this.geometry.computeVertexNormals();
         this.geometry.computeBoundingBox();
         this.geometry.computeBoundingSphere();
@@ -340,18 +351,18 @@ module.exports = Model = class {
         this.config.scale = scale;
 
         //scale geometry
-        for (var i=0;i<this.positions.length;i++){
+        for (var i=0; i<this.positions.length; i++){
             this.positions[i] *= scale;
         }
-        for (var i=0;i<this.vertices.length;i++){
+        for (var i=0; i<this.vertices.length;i++){
             this.vertices[i].multiplyScalar(scale);
         }
 
         //update vertices and edges
-        for (var i=0;i<this.vertices.length;i++){
+        for (var i=0; i<this.vertices.length; i++){
             this.nodes[i].setOriginalPosition(positions[3*i], positions[3*i+1], positions[3*i+2]);
         }
-        for (var i=0;i<this.edges.length;i++){
+        for (var i=0; i<this.edges.length; i++){
             this.edges[i].recalcOriginalLength();
         }
 

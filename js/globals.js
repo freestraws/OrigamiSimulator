@@ -98,15 +98,6 @@ module.exports._globals = {
     shouldAnimateFoldPercent: false
 };
 
-module.exports.setCreasePercent = function(percent){
-    _globals.creasePercent = percent;
-    percent *= 100;
-}
-
-module.exports.warn = function(msg){
-    console.log(msg);
-}
-
 module.exports.noCreasePatternAvailable = function (){
     return _globals.extension == "fold";
 }

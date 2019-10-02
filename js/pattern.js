@@ -2,34 +2,36 @@
  * Created by amandaghassaei on 2/25/17.
  */
 
-const globals = require("globals")
-const FOLD = require("fold")
-const THREE = require("three")
-const ec = require("earcut")
-const numeric = require("numeric")
+const FOLD = require("fold");
+const THREE = require("three");
+const ec = require("earcut");
+const numeric = require("numeric");
+import Model from "model";
 
-module.exports = Pattern = class{
-    constructor(){
-        this.foldData = {}
-        this.rawFold = {}
-        this.verticesRaw = []
+export default Pattern = class {
+    constructor(config){
+        this.config = config;
+        this.model = new Model(this.config);
+        this.foldData = {};
+        this.rawFold = {};
+        this.verticesRaw = [];
         //refs to vertex indices
-        this.mountainsRaw = []
-        this.valleysRaw = []
-        this.bordersRaw = []
-        this.cutsRaw = []
-        this.triangulationsRaw = []
-        this.hingesRaw = []
+        this.mountainsRaw = [];
+        this.valleysRaw = [];
+        this.bordersRaw = [];
+        this.cutsRaw = [];
+        this.triangulationsRaw = [];
+        this.hingesRaw = [];
 
-        this.mountains = []
-        this.valleys = []
-        this.borders = []
-        this.hinges = []
-        this.triangulations = []
+        this.mountains = [];
+        this.valleys = [];
+        this.borders = [];
+        this.hinges = [];
+        this.triangulations = [];
 
-        this.badColors = []//store any bad colors in svg file to show user
+        this.badColors = [];//store any bad colors in svg file to show user
         
-        clearAll()
+        this.clearAll();
     }
 
     clearFold(){
@@ -66,7 +68,7 @@ module.exports = Pattern = class{
     applyTransformation(vertex, transformations){
         if (transformations == undefined) return;
         transformations = transformations.baseVal;
-        for (var i=0;i<transformations.length;i++){
+        for (var i=0; i<transformations.length; i++){
             var t = transformations[i];
             var M = [[t.matrix.a, t.matrix.c, t.matrix.e], [t.matrix.b, t.matrix.d, t.matrix.f], [0,0,1]];
             var out = numeric.dot(M, [vertex.x, vertex.z, 1]);
@@ -76,7 +78,7 @@ module.exports = Pattern = class{
     }
 
     parsePath(_verticesRaw, _segmentsRaw, elements){
-        for (var i=0;i<elements.length;i++){
+        for (var i=0; i<elements.length; i++){
             var path = elements[i];
             var pathVertices = [];
             if (path === undefined || path.getPathData === undefined){//mobile problem
@@ -93,7 +95,7 @@ module.exports = Pattern = class{
                 return;
             }
             var segments = path.getPathData();
-            for (var j=0;j<segments.length;j++){
+            for (var j=0; j<segments.length; j++){
                 var segment = segments[j];
                 var type = segment.type;
                 switch(type){
@@ -171,14 +173,14 @@ module.exports = Pattern = class{
                         break;
                 }
             }
-            for (var j=0;j<pathVertices.length;j++){
+            for (var j=0; j<pathVertices.length; j++){
                 this.applyTransformation(pathVertices[j], path.transform);
             }
         }
     }
 
     parseLine(_verticesRaw, _segmentsRaw, elements){
-        for (var i=0;i<elements.length;i++){
+        for (var i=0; i<elements.length; i++){
             var element = elements[i];
             _verticesRaw.push(new THREE.Vector3(element.x1.baseVal.value, 0, element.y1.baseVal.value));
             _verticesRaw.push(new THREE.Vector3(element.x2.baseVal.value, 0, element.y2.baseVal.value));
@@ -190,7 +192,7 @@ module.exports = Pattern = class{
     }
 
     parseRect(_verticesRaw, _segmentsRaw, elements){
-        for (var i=0;i<elements.length;i++){
+        for (var i=0; i<elements.length; i++){
             var element = elements[i];
             var x = element.x.baseVal.value;
             var y = element.y.baseVal.value;
@@ -212,9 +214,9 @@ module.exports = Pattern = class{
     }
 
     parsePolygon(_verticesRaw, _segmentsRaw, elements){
-        for (var i=0;i<elements.length;i++){
+        for (var i=0; i<elements.length; i++){
             var element = elements[i];
-            for (var j=0;j<element.points.length;j++){
+            for (var j=0; j<element.points.length; j++){
                 _verticesRaw.push(new THREE.Vector3(element.points[j].x, 0, element.points[j].y));
                 this.applyTransformation(_verticesRaw[_verticesRaw.length-1], element.transform);
 
@@ -227,7 +229,7 @@ module.exports = Pattern = class{
     }
 
     parsePolyline(_verticesRaw, _segmentsRaw, elements){
-        for (var i=0;i<elements.length;i++){
+        for (var i=0; i<elements.length; i++){
             var element = elements[i];
             for (var j=0;j<element.points.length;j++){
                 _verticesRaw.push(new THREE.Vector3(element.points[j].x, 0, element.points[j].y));
@@ -260,7 +262,7 @@ module.exports = Pattern = class{
         var foldData = this.foldData
         foldData = this.triangulatePolys(fold, true);
 
-        for (var i=0;i<foldData.vertices_coords.length;i++){
+        for (var i=0; i<foldData.vertices_coords.length; i++){
             var vertex = foldData.vertices_coords[i];
             if (vertex.length === 2) {//make vertices_coords 3d
                 foldData.vertices_coords[i] = [vertex[0], 0, vertex[1]];
@@ -282,12 +284,12 @@ module.exports = Pattern = class{
         var allCreaseParams = this.getFacesAndVerticesForEdges(foldData);//todo precompute vertices_faces
         if (returnCreaseParams) return allCreaseParams;
 
-        globals.model.buildModel(foldData, allCreaseParams);
+        this.model.buildModel(foldData, allCreaseParams);
         return foldData;
     }
 
     reverseFaceOrder(fold){
-        for (var i=0;i<fold.faces_vertices.length;i++){
+        for (var i=0; i<fold.faces_vertices.length; i++){
             fold.faces_vertices[i].reverse();
         }
         return fold;
@@ -295,10 +297,10 @@ module.exports = Pattern = class{
 
     edgesVerticesToVerticesEdges(fold){
         var verticesEdges = [];
-        for (var i=0;i<fold.vertices_coords.length;i++){
+        for (var i=0; i<fold.vertices_coords.length; i++){
             verticesEdges.push([]);
         }
-        for (var i=0;i<fold.edges_vertices.length;i++){
+        for (var i=0; i<fold.edges_vertices.length; i++){
             var edge = fold.edges_vertices[i];
             verticesEdges[edge[0]].push(i);
             verticesEdges[edge[1]].push(i);
@@ -309,12 +311,12 @@ module.exports = Pattern = class{
 
     facesVerticesToVerticesFaces(fold){
         var verticesFaces = [];
-        for (var i=0;i<fold.vertices_coords.length;i++){
+        for (var i=0; i<fold.vertices_coords.length; i++){
             verticesFaces.push([]);
         }
-        for (var i=0;i<fold.faces_vertices.length;i++){
+        for (var i=0; i<fold.faces_vertices.length; i++){
             var face = fold.faces_vertices[i];
-            for (var j=0;j<face.length;j++){
+            for (var j=0; j<face.length; j++){
                 verticesFaces[face[j]].push(i);
             }
         }
@@ -323,11 +325,11 @@ module.exports = Pattern = class{
     }
 
     sortVerticesEdges(fold){
-        for (var i=0;i<fold.vertices_vertices.length;i++){
+        for (var i=0; i<fold.vertices_vertices.length; i++){
             var verticesVertices = fold.vertices_vertices[i];
             var verticesEdges = fold.vertices_edges[i];
             var sortedVerticesEdges = [];
-            for (var j=0;j<verticesVertices.length;j++){
+            for (var j=0; j<verticesVertices.length; j++){
                 var index = -1;
                 for (var k=0;k<verticesEdges.length;k++){
                     var edgeIndex = verticesEdges[k];
@@ -349,12 +351,12 @@ module.exports = Pattern = class{
         fold = this.sortVerticesEdges(fold);
         fold = this.facesVerticesToVerticesFaces(fold);
         //go around each vertex and split cut in clockwise order
-        for (var i=0;i<fold.vertices_edges.length;i++){
+        for (var i=0; i<fold.vertices_edges.length; i++){
             var groups = [[]];
             var groupIndex = 0;
             var verticesEdges = fold.vertices_edges[i];
             var verticesFaces = fold.vertices_faces[i];
-            for (var j=0;j<verticesEdges.length;j++){
+            for (var j=0; j<verticesEdges.length; j++){
                 var edgeIndex = verticesEdges[j];
                 var assignment = fold.edges_assignment[edgeIndex];
                 groups[groupIndex].push(edgeIndex);
@@ -399,16 +401,16 @@ module.exports = Pattern = class{
                 }
             }
             if (groups.length <= 1) continue;
-            for (var k=groups[groupIndex].length-1;k>=0;k--){//put remainder of last group in first group
+            for (var k=groups[groupIndex].length-1; k>=0; k--){//put remainder of last group in first group
                 groups[0].unshift(groups[groupIndex][k]);
             }
             groups.pop();
-            for (var j=1;j<groups.length;j++){//for each extra group, assign new vertex
+            for (var j=1; j<groups.length; j++){//for each extra group, assign new vertex
                 var currentVertex = fold.vertices_coords[i];
                 var vertIndex = fold.vertices_coords.length;
                 fold.vertices_coords.push(currentVertex.slice());//make a copy
                 var connectingIndices = [];
-                for (var k=0;k<groups[j].length;k++){//update edges_vertices
+                for (var k=0; k<groups[j].length; k++){//update edges_vertices
                     var edgeIndex = groups[j][k];
                     var edge = fold.edges_vertices[edgeIndex];
                     var otherIndex = edge[0];
@@ -421,12 +423,12 @@ module.exports = Pattern = class{
                 if (connectingIndices.length<2) {
                     console.warn("problem here");
                 } else {
-                    for (var k=1;k<connectingIndices.length;k++){//update faces_vertices
+                    for (var k=1; k<connectingIndices.length; k++){//update faces_vertices
                         //i, k-1, k
                         var thisConnectingVertIndex = connectingIndices[k];
                         var previousConnectingVertIndex = connectingIndices[k-1];
                         var found = false;
-                        for (var a=0;a<verticesFaces.length;a++){
+                        for (var a=0; a<verticesFaces.length; a++){
                             var face = fold.faces_vertices[verticesFaces[a]];
                             var index1 = face.indexOf(thisConnectingVertIndex);
                             var index2 = face.indexOf(previousConnectingVertIndex);
@@ -453,7 +455,7 @@ module.exports = Pattern = class{
 
     connectedByFace(fold, verticesFaces, vert1, vert2){
         if (vert1 == vert2) return false;
-        for (var a=0;a<verticesFaces.length;a++){
+        for (var a=0; a<verticesFaces.length; a++){
             var face = fold.faces_vertices[verticesFaces[a]];
             if (face.indexOf(vert1) >= 0 && face.indexOf(vert2) >= 0){
                 return true;
@@ -463,17 +465,17 @@ module.exports = Pattern = class{
     }
 
     removeBorderFaces(fold){
-        for (var i=fold.faces_vertices.length-1;i>=0;i--){
+        for (var i=fold.faces_vertices.length-1; i>=0; i--){
             var face = fold.faces_vertices[i];
             var allBorder = true;
 
-            for (var j=0;j<face.length;j++){
+            for (var j=0; j<face.length; j++){
                 var vertexIndex = face[j];
                 var nextIndex = j+1;
                 if (nextIndex >= face.length) nextIndex = 0;
                 var nextVertexIndex = face[nextIndex];
                 var connectingEdgeFound = false;
-                for (var k=0;k<fold.vertices_edges[vertexIndex].length;k++){
+                for (var k=0; k<fold.vertices_edges[vertexIndex].length; k++){
                     var edgeIndex = fold.vertices_edges[vertexIndex][k];
                     var edge = fold.edges_vertices[edgeIndex];
                     if ((edge[0] == vertexIndex && edge[1] == nextVertexIndex) ||
@@ -497,14 +499,14 @@ module.exports = Pattern = class{
     getFacesAndVerticesForEdges(fold){
         var allCreaseParams = [];//face1Ind, vertInd, face2Ind, ver2Ind, edgeInd, angle
         var faces = fold.faces_vertices;
-        for (var i=0;i<fold.edges_vertices.length;i++){
+        for (var i=0; i<fold.edges_vertices.length; i++){
             var assignment = fold.edges_assignment[i];
             if (assignment !== "M" && assignment !== "V" && assignment !== "F") continue;
             var edge = fold.edges_vertices[i];
             var v1 = edge[0];
             var v2 = edge[1];
             var creaseParams = [];
-            for (var j=0;j<faces.length;j++){
+            for (var j=0; j<faces.length; j++){
                 var face = faces[j];
                 var faceVerts = [face[0], face[1], face[2]];
                 var v1Index = faceVerts.indexOf(v1);
@@ -543,7 +545,7 @@ module.exports = Pattern = class{
         var old2new = [];
         var numRedundant = 0;
         var newIndex = 0;
-        for (var i=0;i<fold.vertices_vertices.length;i++){
+        for (var i=0; i<fold.vertices_vertices.length; i++){
             var vertex_vertices = fold.vertices_vertices[i];
             if (vertex_vertices.length != 2) {
                 old2new.push(newIndex++);
@@ -581,9 +583,9 @@ module.exports = Pattern = class{
         console.warn(numRedundant + " redundant vertices found");
         fold = FOLD.filter.remapField(fold, 'vertices', old2new);
         if (fold.faces_vertices){
-            for (var i=0;i<fold.faces_vertices.length;i++){
+            for (var i=0; i<fold.faces_vertices.length; i++){
                 var face = fold.faces_vertices[i];
-                for (var j=face.length-1;j>=0;j--){
+                for (var j=face.length-1; j>=0; j--){
                     if (face[j] === null) face.splice(j, 1);
                 }
             }
@@ -597,7 +599,7 @@ module.exports = Pattern = class{
         var angles = [];
         var edgeAssignment = null;
         var edgeIndices = [];
-        for (var i=fold.edges_vertices.length-1;i>=0;i--){
+        for (var i=fold.edges_vertices.length-1; i>=0; i--){
             var edge = fold.edges_vertices[i];
             if (edge.indexOf(v2)>=0 && (edge.indexOf(v1) >= 0 || edge.indexOf(v3) >= 0)){
                 if (edgeAssignment === null) edgeAssignment = fold.edges_assignment[i];
@@ -619,7 +621,7 @@ module.exports = Pattern = class{
         if (angles[0] != angles[1]){
             console.warn("incompatible angles: " + JSON.stringify(angles));
         }
-        for (var i=0;i<edgeIndices.length;i++){
+        for (var i=0; i<edgeIndices.length; i++){
             var index = edgeIndices[i];
             fold.edges_vertices.splice(index, 1);
             fold.edges_assignment.splice(index, 1);
@@ -646,7 +648,7 @@ module.exports = Pattern = class{
         var numStrays = 0;
         var old2new = [];
         var newIndex = 0;
-        for (var i=0;i<fold.vertices_vertices.length;i++){
+        for (var i=0; i<fold.vertices_vertices.length; i++){
             if (fold.vertices_vertices[i] === undefined || fold.vertices_vertices[i].length==0) {
                 numStrays++;
                 old2new.push(null);
@@ -664,7 +666,7 @@ module.exports = Pattern = class{
         var foldAngles = fold.edges_foldAngles;
         var assignments = fold.edges_assignment;
         var triangulatedFaces = [];
-        for (var i=0;i<faces.length;i++){
+        for (var i=0; i<faces.length; i++){
 
             var face = faces[i];
 
@@ -698,7 +700,7 @@ module.exports = Pattern = class{
             }
 
             var faceEdges = [];
-            for (var j=0;j<edges.length;j++){
+            for (var j=0; j<edges.length; j++){
                 var edge = edges[j];
                 if (face.indexOf(edge[0]) >= 0 && face.indexOf(edge[1]) >= 0){
                     faceEdges.push(j);
@@ -706,7 +708,7 @@ module.exports = Pattern = class{
             }
 
             var faceVert = [];
-            for (var j=0;j<face.length;j++){
+            for (var j=0; j<face.length; j++){
                 var vertex = vertices[face[j]];
                 faceVert.push(vertex[0]);
                 faceVert.push(vertex[1]);
@@ -715,11 +717,11 @@ module.exports = Pattern = class{
 
             var triangles = ec.earcut(faceVert, null, is2d? 2:3);
 
-            for (var j=0;j<triangles.length;j+=3){
+            for (var j=0; j<triangles.length; j+=3){
                 var tri = [face[triangles[j+2]], face[triangles[j+1]], face[triangles[j]]];
                 var foundEdges = [false, false, false];//ab, bc, ca
 
-                for (var k=0;k<faceEdges.length;k++){
+                for (var k=0; k<faceEdges.length; k++){
                     var edge = edges[faceEdges[k]];
 
                     var aIndex = edge.indexOf(tri[0]);
@@ -744,7 +746,7 @@ module.exports = Pattern = class{
                     }
                 }
 
-                for (var k=0;k<3;k++){
+                for (var k=0; k<3; k++){
                     if (foundEdges[k]) continue;
                     if (k==0){
                         faceEdges.push(edges.length);
@@ -772,9 +774,9 @@ module.exports = Pattern = class{
     }
 
     foldAngles(fold){
-        globals.setCreasePercent(1);
+        model.setCreasePercent(1);
         var foldAngles = [];
-        for (var i=0;i<fold.edges_assignment.length;i++){
+        for (var i=0; i<fold.edges_assignment.length; i++){
             var assignment = fold.edges_assignment[i];
             if (assignment == "F") foldAngles.push(0);
             else foldAngles.push(null);
@@ -784,7 +786,7 @@ module.exports = Pattern = class{
         var allCreaseParams = this.setFoldData(fold, true);
         var j = 0;
         var faces = this.getTriangulatedFaces();
-        for (var i=0;i<fold.edges_assignment.length;i++){
+        for (var i=0; i<fold.edges_assignment.length; i++){
             var assignment = fold.edges_assignment[i];
             if (assignment !== "M" && assignment !== "V" && assignment !== "F") continue;
             var creaseParams = allCreaseParams[j];
@@ -810,8 +812,8 @@ module.exports = Pattern = class{
         var edges = fold.edges_vertices;
         var foldAngles = fold.edges_foldAngles;
         var assignments = fold.edges_assignment;
-        for (var i=edges.length-1;i>=0;i--){
-            for (var j=i-1;j>=0;j--){
+        for (var i=edges.length-1; i>=0; i--){
+            for (var j=i-1; j>=0; j--){
                 var v1 = makeVector2(vertices[edges[i][0]]);
                 var v2 = makeVector2(vertices[edges[i][1]]);
                 var v3 = makeVector2(vertices[edges[j][0]]);

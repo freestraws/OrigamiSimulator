@@ -1,61 +1,46 @@
 /**
  * Created by ghassaei on 2/24/16.
+ * nodified by freestraws on 10/1/2019
  */
+import GLBoilerPlate from "GLBoilerplate"
 
-
-function initGPUMath(){
-
-    var glBoilerplate = GLBoilerPlate();
-
-    var canvas = document.getElementById("gpuMathCanvas");
-    var gl = canvas.getContext("webgl", {antialias:false}) || canvas.getContext("experimental-webgl", {antialias:false});
-    var floatTextures = gl.getExtension('OES_texture_float');
-    if (!floatTextures) {
-        notSupported();
-    }
-    gl.disable(gl.DEPTH_TEST);
-
-    var maxTexturesInFragmentShader = gl.getParameter(gl.MAX_TEXTURE_IMAGE_UNITS);
-    console.log(maxTexturesInFragmentShader + " textures max");
-
-    function notSupported(){
-        var elm = '<div id="coverImg" ' +
-                  'style="background: url(crane.gif) no-repeat center center fixed;' +
-                    '-webkit-background-size: cover;' +
-                    '-moz-background-size: cover;' +
-                    '-o-background-size: cover;' +
-                    'background-size: cover;">'+
-                  '</div>';
-                $(elm).appendTo($("body"));
-        $("#noSupportModal").modal("show");
-        $("#aboutCorner").show();
-       console.warn("floating point textures are not supported on your system");
-    }
-
-
-
-    function GPUMath(){
+export default GPUMath = class {
+    constructor(canvas){
+        this.glBoilerplate = GLBoilerPlate();
+        this.canvas = canvas;
+        this.gl = this.canvas.getContext("webgl", {antialias:false}) || this.canvas.getContext("experimental-webgl", {antialias:false});
+        this.floatTextures = this.gl.getExtension('OES_texture_float');
+        if (!this.floatTextures) {
+            this.notSupported();
+        }
+        this.gl.disable(this.gl.DEPTH_TEST);
+        this.maxTexturesInFragmentShader = this.gl.getParameter(this.gl.MAX_TEXTURE_IMAGE_UNITS);
+        console.log(this.maxTexturesInFragmentShader + " textures max");
         this.reset();
     }
 
-    GPUMath.prototype.createProgram = function(programName, vertexShader, fragmentShader){
+    notSupported(){
+        console.warn("floating point textures are not supported on your system");
+    }
+
+    createProgram(programName, vertexShader, fragmentShader){
         var programs = this.programs;
         var program = programs[programName];
         if (program) {
-            gl.useProgram(program.program);
-            // console.warn("already a program with the name " + programName);
+            this.gl.useProgram(program.program);
+            console.warn("already a program with the name " + programName);
             return;
         }
-        program = glBoilerplate.createProgramFromSource(gl, vertexShader, fragmentShader);
-        gl.useProgram(program);
-        glBoilerplate.loadVertexData(gl, program);
+        program = this.glBoilerplate.createProgramFromSource(this.gl, vertexShader, fragmentShader);
+        this.gl.useProgram(program);
+        this.glBoilerplate.loadVertexData(this.gl, program);
         programs[programName] = {
             program: program,
             uniforms: {}
         };
     };
 
-    GPUMath.prototype.initTextureFromData = function(name, width, height, typeName, data, shouldReplace){
+    initTextureFromData(name, width, height, typeName, data, shouldReplace){
         var texture = this.textures[name];
 
         if (texture){
@@ -63,22 +48,20 @@ function initGPUMath(){
                 console.warn("already a texture with the name " + name);
                 return;
             }
-            gl.deleteTexture(texture);
+            this.gl.deleteTexture(texture);
         }
-        texture = glBoilerplate.makeTexture(gl, width, height, gl[typeName], data);
+        texture = this.glBoilerplate.makeTexture(this.gl, width, height, this.gl[typeName], data);
         this.textures[name] = texture;
     };
 
-
-
-    GPUMath.prototype.initFrameBufferForTexture = function(textureName, shouldReplace){
+    initFrameBufferForTexture(textureName, shouldReplace){
         var framebuffer = this.frameBuffers[textureName];
         if (framebuffer){
             if (!shouldReplace) {
                 console.warn("framebuffer already exists for texture " + textureName);
                 return;
             }
-            gl.deleteFramebuffer(framebuffer);
+            this.gl.deleteFramebuffer(framebuffer);
         }
         var texture = this.textures[textureName];
         if (!texture){
@@ -86,20 +69,19 @@ function initGPUMath(){
             return;
         }
 
-        framebuffer = gl.createFramebuffer();
-        gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
-        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+        framebuffer = this.gl.createFramebuffer();
+        this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, framebuffer);
+        this.gl.framebufferTexture2D(this.gl.FRAMEBUFFER, this.gl.COLOR_ATTACHMENT0, this.gl.TEXTURE_2D, texture, 0);
 
-        var check = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
-        if(check != gl.FRAMEBUFFER_COMPLETE){
-            notSupported();
+        var check = this.gl.checkFramebufferStatus(this.gl.FRAMEBUFFER);
+        if(check != this.gl.FRAMEBUFFER_COMPLETE){
+            this.notSupported();
         }
 
         this.frameBuffers[textureName] = framebuffer;
     };
 
-
-    GPUMath.prototype.setUniformForProgram = function(programName, name, val, type){
+    setUniformForProgram(programName, name, val, type){
         if (!this.programs[programName]){
             console.warn("no program with name " + programName);
             return;
@@ -107,42 +89,41 @@ function initGPUMath(){
         var uniforms = this.programs[programName].uniforms;
         var location = uniforms[name];
         if (!location) {
-            location = gl.getUniformLocation(this.programs[programName].program, name);
+            location = this.gl.getUniformLocation(this.programs[programName].program, name);
             uniforms[name] = location;
         }
-        if (type == "1f") gl.uniform1f(location, val);
-        else if (type == "2f") gl.uniform2f(location, val[0], val[1]);
-        else if (type == "3f") gl.uniform3f(location, val[0], val[1], val[2]);
-        else if (type == "1i") gl.uniform1i(location, val);
+        if (type == "1f") this.gl.uniform1f(location, val);
+        else if (type == "2f") this.gl.uniform2f(location, val[0], val[1]);
+        else if (type == "3f") this.gl.uniform3f(location, val[0], val[1], val[2]);
+        else if (type == "1i") this.gl.uniform1i(location, val);
         else {
             console.warn("no uniform for type " + type);
         }
     };
 
-    GPUMath.prototype.setSize = function(width, height){
-        gl.viewport(0, 0, width, height);
-        canvas.clientWidth = width;
-        canvas.clientHeight = height;
+    setSize(width, height){
+        this.gl.viewport(0, 0, width, height);
+        this.canvas.clientWidth = width;
+        this.canvas.clientHeight = height;
     };
 
-    GPUMath.prototype.setProgram = function(programName){
+    setProgram(programName){
         var program = this.programs[programName];
-        if (program) gl.useProgram(program.program);
+        if (program) this.gl.useProgram(program.program);
     };
 
-    GPUMath.prototype.step = function(programName, inputTextures, outputTexture, time){
-
-        gl.useProgram(this.programs[programName].program);
+    step(programName, inputTextures, outputTexture, time){
+        this.gl.useProgram(this.programs[programName].program);
         if (time) this.setUniformForProgram(programName, "u_time", time, "1f");
-        gl.bindFramebuffer(gl.FRAMEBUFFER, this.frameBuffers[outputTexture]);
-        for (var i=0;i<inputTextures.length;i++){
-            gl.activeTexture(gl.TEXTURE0 + i);
-            gl.bindTexture(gl.TEXTURE_2D, this.textures[inputTextures[i]]);
+        this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.frameBuffers[outputTexture]);
+        for (var i=0; i<inputTextures.length; i++){
+            this.gl.activeTexture(this.gl.TEXTURE0 + i);
+            this.gl.bindTexture(this.gl.TEXTURE_2D, this.textures[inputTextures[i]]);
         }
-        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);//draw to framebuffer
+        this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, 4);//draw to framebuffer
     };
 
-    GPUMath.prototype.swapTextures = function(texture1Name, texture2Name){
+    swapTextures(texture1Name, texture2Name){
         var temp = this.textures[texture1Name];
         this.textures[texture1Name] = this.textures[texture2Name];
         this.textures[texture2Name] = temp;
@@ -151,7 +132,7 @@ function initGPUMath(){
         this.frameBuffers[texture2Name] = temp;
     };
 
-    GPUMath.prototype.swap3Textures = function(texture1Name, texture2Name, texture3Name){
+    swap3Textures(texture1Name, texture2Name, texture3Name){
         var temp = this.textures[texture3Name];
         this.textures[texture3Name] = this.textures[texture2Name];
         this.textures[texture2Name] = this.textures[texture1Name];
@@ -162,20 +143,18 @@ function initGPUMath(){
         this.frameBuffers[texture1Name] = temp;
     };
 
-    GPUMath.prototype.readyToRead = function(){
-        return gl.checkFramebufferStatus(gl.FRAMEBUFFER) == gl.FRAMEBUFFER_COMPLETE;
+    readyToRead(){
+        return this.gl.checkFramebufferStatus(this.gl.FRAMEBUFFER) == this.gl.FRAMEBUFFER_COMPLETE;
     };
 
-    GPUMath.prototype.readPixels = function(xMin, yMin, width, height, array){
-        gl.readPixels(xMin, yMin, width, height, gl.RGBA, gl.UNSIGNED_BYTE, array);
+    readPixels(xMin, yMin, width, height, array){
+        this.gl.readPixels(xMin, yMin, width, height, this.gl.RGBA, this.gl.UNSIGNED_BYTE, array);
     };
 
-    GPUMath.prototype.reset = function(){
+    reset(){
         this.programs = {};
         this.frameBuffers = {};
         this.textures = {};
         this.index = 0;
     };
-
-    return new GPUMath;
-}
+};
