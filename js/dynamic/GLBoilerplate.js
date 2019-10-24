@@ -1,6 +1,6 @@
 //from http://webglfundamentals.org/webgl/lessons/webgl-boilerplate.html
 
-function GLBoilerPlate(){
+module.exports.GLBoilerPlate = class{
 
     /**
      * Creates and compiles a shader.
@@ -11,7 +11,7 @@ function GLBoilerPlate(){
      *     FRAGMENT_SHADER.
      * @return {!WebGLShader} The shader.
      */
-    function compileShader(gl, shaderSource, shaderType) {
+    compileShader(gl, shaderSource, shaderType) {
       // Create the shader object
       var shader = gl.createShader(shaderType);
 
@@ -39,7 +39,7 @@ function GLBoilerPlate(){
      * @param {!WebGLShader} fragmentShader A fragment shader.
      * @return {!WebGLProgram} A program.
      */
-    function createProgram(gl, vertexShader, fragmentShader) {
+    createProgram(gl, vertexShader, fragmentShader) {
       // create a program.
       var program = gl.createProgram();
 
@@ -70,7 +70,7 @@ function GLBoilerPlate(){
      *     script tag.
      * @return {!WebGLShader} A shader.
      */
-    function createShaderFromSource(gl, shaderSource, shaderType) {
+    createShaderFromSource(gl, shaderSource, shaderType) {
       return compileShader(gl, shaderSource, shaderType);
     }
 
@@ -82,14 +82,13 @@ function GLBoilerPlate(){
      * @param {string} fragmentShaderId The id of the fragment shader script tag.
      * @return {!WebGLProgram} A program
      */
-    function createProgramFromSource(
-        gl, vertexShader, fragmentShader) {
-      var vertexShader = createShaderFromSource(gl, vertexShader, gl.VERTEX_SHADER);
-      var fragmentShader = createShaderFromSource(gl, fragmentShader, gl.FRAGMENT_SHADER);
+    createProgramFromSource(gl, vertexShader, fragmentShader) {
+      vertexShader = this.createShaderFromSource(gl, vertexShader, gl.VERTEX_SHADER);
+      fragmentShader = this.createShaderFromSource(gl, fragmentShader, gl.FRAGMENT_SHADER);
       return createProgram(gl, vertexShader, fragmentShader);
     }
 
-    function loadVertexData(gl, program) {
+    loadVertexData(gl, program) {
         gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([ -1,-1, 1,-1, -1, 1, 1, 1]), gl.STATIC_DRAW);
 
@@ -99,7 +98,7 @@ function GLBoilerPlate(){
         gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
     }
 
-    function makeTexture(gl, width, height, type, data){
+    makeTexture(gl, width, height, type, data){
 
         var texture = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -114,10 +113,4 @@ function GLBoilerPlate(){
 
         return texture;
     }
-
-    return {
-        createProgramFromSource: createProgramFromSource,
-        loadVertexData: loadVertexData,
-        makeTexture: makeTexture
-    }
-}
+};

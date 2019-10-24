@@ -6,10 +6,10 @@ const FOLD = require("fold");
 const THREE = require("three");
 const ec = require("earcut");
 const numeric = require("numeric");
-import Model from "model";
+const Model = require("./model").Model;
 
-export default Pattern = class {
-    constructor(config){
+module.exports.Pattern = class{
+    constructor(config, fold=None){
         this.config = config;
         this.model = new Model(this.config);
         this.foldData = {};
@@ -32,6 +32,9 @@ export default Pattern = class {
         this.badColors = [];//store any bad colors in svg file to show user
         
         this.clearAll();
+        if (fold){
+            this.collapseTriangulate(fold);
+        }
     }
 
     clearFold(){
@@ -241,7 +244,7 @@ export default Pattern = class {
     }
 
     processFold(fold, returnCreaseParams){
-        var rawFold = this.rawfold
+        var rawFold = this.rawfold;
         rawFold = JSON.parse(JSON.stringify(fold));//save pre-triangulated for for save later
         //make 3d
         for (var i=0;i<rawFold.vertices_coords.length;i++){
@@ -259,7 +262,7 @@ export default Pattern = class {
         }
         delete fold.vertices_vertices;
         delete fold.vertices_edges;
-        var foldData = this.foldData
+        var foldData = this.foldData;
         foldData = this.triangulatePolys(fold, true);
 
         for (var i=0; i<foldData.vertices_coords.length; i++){
@@ -280,8 +283,8 @@ export default Pattern = class {
         // $("#numFacets").html("(" + this.triangulations.length + ")");
         // $("#numBoundary").html("(" + this.borders.length + ")");
         // $("#numPassive").html("(" + this.hinges.length + ")");
-
-        var allCreaseParams = this.getFacesAndVerticesForEdges(foldData);//todo precompute vertices_faces
+        // TODO precompute vertices_face
+        var allCreaseParams = this.getFacesAndVerticesForEdges(foldData);
         if (returnCreaseParams) return allCreaseParams;
 
         this.model.buildModel(foldData, allCreaseParams);
@@ -804,7 +807,7 @@ export default Pattern = class {
             creaseParams[5] = angle;
             j++;
         }
-        return fold
+        return fold;
     }
 
     findIntersections(fold, tol){
@@ -869,14 +872,46 @@ export default Pattern = class {
         if (raw) return rawFold;
         return foldData;
     }
-    
+
     setFoldData(fold, returnCreaseParams){
         clearAll();
         return processFold(fold, returnCreaseParams);
     }
-    
+
     getTriangulatedFaces(){
         return foldData.faces_vertices;
+    }
+
+    collapseTriangulate(fold){
+        if (!fold){
+            fold = this.foldData;
+        }
+        // fold = FOLD.filter.collapseNearbyVertices(fold, this.config.import_pattern.vertTol);
+        // console.log(fold.edges_vertices);
+        // fold = FOLD.filter.removeLoopEdges(fold); //remove edges that points to same vertex
+        // console.log(fold.edges_vertices);
+        // fold = FOLD.filter.removeDuplicateEdges_vertices(fold); //remove duplicate edges
+        // fold = FOLD.filter.subdivideCrossingEdges_vertices(fold, globals.vertTol)//find intersections and add vertices/edges
+    
+        fold = this.findIntersections(fold, this.config.import_pattern.vertTol);
+        //cleanup after intersection operation
+        fold = FOLD.filter.collapseNearbyVertices(fold, this.config.import_pattern.vertTol);
+        fold = FOLD.filter.removeLoopEdges(fold); //remove edges that points to same vertex
+        fold = FOLD.filter.removeDuplicateEdges_vertices(fold); //remove duplicate edges
+    
+        fold = FOLD.convert.edges_vertices_to_vertices_vertices_unsorted(fold);
+        fold = this.removeStrayVertices(fold); //delete stray anchors
+        fold = pattern.removeRedundantVertices(fold, 0.01); //remove vertices that split edge
+    
+        fold.vertices_vertices = FOLD.convert.sort_vertices_vertices(fold);
+        fold = FOLD.convert.vertices_vertices_to_faces_vertices(fold);
+    
+        fold = this.edgesVerticesToVerticesEdges(fold);
+        fold = this.removeBorderFaces(fold); //expose holes surrounded by all border edges
+    
+        fold = this.reverseFaceOrder(fold); //set faces to counter clockwise
+    
+        return this.processFold(fold);
     }
 }
 
@@ -920,113 +955,4 @@ function line_intersect(v1, v2, v3, v4) {
         t1: ua,
         t2: ub
     };
-}
-
-
-
-function getOpacity(obj){
-    var opacity = obj.attr("opacity");
-    if (opacity === undefined) {
-        if (obj.attr("style") && $(obj)[0].style.opacity) {
-            opacity = $(obj)[0].style.opacity;
-        }
-        if (opacity === undefined){
-            opacity = obj.attr("stroke-opacity");
-            if (opacity === undefined) {
-                if (obj.attr("style") && $(obj)[0].style["stroke-opacity"]) {
-                    opacity = $(obj)[0].style["stroke-opacity"];
-                }
-            }
-        }
-    }
-    opacity = parseFloat(opacity);
-    if (isNaN(opacity)) return 1;
-    return opacity;
-}
-
-function getStroke(obj){
-    var stroke = obj.attr("stroke");
-    if (stroke === undefined) {
-        if (obj.attr("style") && $(obj)[0].style.stroke) {
-            stroke = ($(obj)[0].style.stroke).toLowerCase();
-            stroke = stroke.replace(/\s/g,'');//remove all whitespace
-            return stroke;
-        }
-        return null;
-    }
-    stroke = stroke.replace(/\s/g,'');//remove all whitespace
-    return stroke.toLowerCase();
-}
-
-function typeForStroke(stroke){
-    if (stroke == "#000000" || stroke == "#000" || stroke == "black" || stroke == "rgb(0,0,0)") return "border";
-    if (stroke == "#ff0000" || stroke == "#f00" || stroke == "red" || stroke == "rgb(255,0,0)") return "mountain";
-    if (stroke == "#0000ff" || stroke == "#00f" || stroke == "blue" || stroke == "rgb(0,0,255)") return "valley";
-    if (stroke == "#00ff00" || stroke == "#0f0" || stroke == "green" || stroke == "rgb(0,255,0)") return "cut";
-    if (stroke == "#ffff00" || stroke == "#ff0" || stroke == "yellow" || stroke == "rgb(255,255,0)") return "triangulation";
-    if (stroke == "#ff00ff" || stroke == "#f0f" || stroke == "magenta" || stroke == "rgb(255,0,255)") return "hinge";
-    badColors.push(stroke);
-    return null;
-}
-
-function colorForAssignment(assignment){
-    if (assignment == "B") return "#000";//border
-    if (assignment == "M") return "#f00";//mountain
-    if (assignment == "V") return "#00f";//valley
-    if (assignment == "C") return "#0f0";//cut
-    if (assignment == "F") return "#ff0";//facet
-    if (assignment == "U") return "#f0f";//hinge
-    return "#0ff"
-}
-function opacityForAngle(angle, assignment){
-    if (angle === null || assignment == "F") return 1;
-    return Math.abs(angle)/Math.PI;
-}
-
-module.exports.filters = {
-    //filter for svg parsing
-    border = function(){
-        var stroke = getStroke($(this));
-        return typeForStroke(stroke) == "border";
-    },
-    mountain = function(){
-        var $this = $(this);
-        var stroke = getStroke($this);
-        if (typeForStroke(stroke) == "mountain"){
-            var opacity = getOpacity($this);
-            this.targetAngle = -opacity*Math.PI;
-            return true;
-        }
-        return false;
-    },
-    valley = function(){
-        var $this = $(this);
-        var stroke = getStroke($this);
-        if (typeForStroke(stroke) == "valley"){
-            var opacity = getOpacity($this);
-            this.targetAngle = opacity*Math.PI;
-            return true;
-        }
-        return false;
-    },
-    cut = function(){
-        var stroke = getStroke($(this));
-        return typeForStroke(stroke) == "cut";
-    },
-    triangulation = function(){
-        var stroke = getStroke($(this));
-        return typeForStroke(stroke) == "triangulation";
-    },
-    hinge = function(){
-        var stroke = getStroke($(this));
-        return typeForStroke(stroke) == "hinge";
-    }
-}
-
-module.exports.findType = function(_verticesRaw, _segmentsRaw, filter, paths, lines, rects, polygons, polylines){
-    parsePath(_verticesRaw, _segmentsRaw, paths.filter(filter));
-    parseLine(_verticesRaw, _segmentsRaw, lines.filter(filter));
-    parseRect(_verticesRaw, _segmentsRaw, rects.filter(filter));
-    parsePolygon(_verticesRaw, _segmentsRaw, polygons.filter(filter));
-    parsePolyline(_verticesRaw, _segmentsRaw, polylines.filter(filter));
 }

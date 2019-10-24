@@ -4,18 +4,19 @@
  */
 
 const shader_dir = "../shaders/";
-import GPUMath from "GPUMath";
+const GPUMath = require("./GPUMath").GPUMath;
 
-export default dynamicSolver = class {
-    constructor(config){
+module.exports.dynamicSolver = class {
+    constructor(config) {
         this.gpuMath = new GPUMath();
         this.config = config;
-        this.nodes;
-        this.edges;
-        this.faces;
-        this.creases;
-        this.positions;
-        this.colors;
+        this.shouldCenterGeo = false;
+        this.nodes = [];
+        this.edges = [];
+        this.faces = [];
+        this.creases = [];
+        this.positions = [];
+        this.colors = [];
 
         this.originalPosition;
         this.position;
@@ -77,43 +78,7 @@ export default dynamicSolver = class {
     }
 
     solve(_numSteps){
-        if (this.shouldAnimateFoldPercent){
-            globals.creasePercent = globals.videoAnimator.nextFoldAngle(0);
-            globals.controls.updateCreasePercent();
-            this.setCreasePercent(globals.creasePercent);
-            globals.shouldChangeCreasePercent = true;
-        }
-
-        if (globals.forceHasChanged) {
-            this.updateExternalForces();
-            globals.forceHasChanged = false;
-        }
-        if (globals.fixedHasChanged) {
-            this.updateFixed();
-            globals.fixedHasChanged = false;
-        }
-        if (globals.nodePositionHasChanged) {
-            this.updateLastPosition();
-            globals.nodePositionHasChanged = false;
-        }
-        if (globals.creaseMaterialHasChanged) {
-            this.updateCreasesMeta();
-            globals.creaseMaterialHasChanged = false;
-        }
-        if (globals.materialHasChanged) {
-            this.updateMaterials();
-            globals.materialHasChanged = false;
-        }
-        if (globals.shouldChangeCreasePercent) {
-            this.setCreasePercent(globals.creasePercent);
-            globals.shouldChangeCreasePercent = false;
-        }
-        // if (globals.shouldZeroDynamicVelocity){
-        //     this.gpuMath.step("zeroTexture", [], "u_velocity");
-        //     this.gpuMath.step("zeroTexture", [], "u_lastVelocity");
-        //     globals.shouldZeroDynamicVelocity = false;
-        // }
-        if (globals.shouldCenterGeo){
+        if (this.shouldCenterGeo){
             var avgPosition = this.getAvgPosition();
             this.gpuMath.setProgram("centerTexture");
             this.gpuMath.setUniformForProgram("centerTexture", "u_center", [avgPosition.x, avgPosition.y, avgPosition.z], "3f");
@@ -122,7 +87,7 @@ export default dynamicSolver = class {
             this.gpuMath.swapTextures("u_position", "u_lastPosition");
             this.gpuMath.step("zeroTexture", [], "u_lastVelocity");
             this.gpuMath.step("zeroTexture", [], "u_velocity");
-            globals.shouldCenterGeo = false;
+            this.shouldCenterGeo = false;
         }
 
         if (_numSteps === undefined) _numSteps = this.config.numSteps;
@@ -239,7 +204,6 @@ export default dynamicSolver = class {
         this.gpuMath.setUniformForProgram("positionCalc", "u_dt", dt, "1f");
         this.gpuMath.setProgram("velocityCalcVerlet");
         this.gpuMath.setUniformForProgram("velocityCalcVerlet", "u_dt", dt, "1f");
-        globals.controls.setDeltaT(dt);
     }
 
     calcDt(){
@@ -258,7 +222,7 @@ export default dynamicSolver = class {
         var textureDimNodeFaces = this.textureDimNodeFaces;
         var textureDimFaces = this.textureDimFaces;
         var textureDimNodeCreases = this.textureDimNodeCreases;
-        
+
         gpuMath.initTextureFromData("u_position", textureDim, textureDim, "FLOAT", this.position, true);
         gpuMath.initTextureFromData("u_lastPosition", textureDim, textureDim, "FLOAT", this.lastPosition, true);
         gpuMath.initTextureFromData("u_lastLastPosition", textureDim, textureDim, "FLOAT", this.lastLastPosition, true);
@@ -322,7 +286,7 @@ export default dynamicSolver = class {
         gpuMath.setUniformForProgram("velocityCalc", "u_textureDimCreases", [textureDimCreases, textureDimCreases], "2f");
         gpuMath.setUniformForProgram("velocityCalc", "u_textureDimNodeCreases", [textureDimNodeCreases, textureDimNodeCreases], "2f");
         gpuMath.setUniformForProgram("velocityCalc", "u_textureDimNodeFaces", [textureDimNodeFaces, textureDimNodeFaces], "2f");
-        gpuMath.setUniformForProgram("velocityCalc", "u_creasePercent", globals.creasePercent, "1f");
+        gpuMath.setUniformForProgram("velocityCalc", "u_creasePercent", this.config.compliant_sim.defaultCreasePercent, "1f");
         gpuMath.setUniformForProgram("velocityCalc", "u_axialStiffness", this.config.compliant_sim.axialStiffness, "1f");
         gpuMath.setUniformForProgram("velocityCalc", "u_faceStiffness", this.config.compliant_sim.faceStiffness, "1f");
         gpuMath.setUniformForProgram("velocityCalc", "u_calcFaceStrain", this.config.compliant_sim.calcFaceStrain, "1f");
@@ -350,7 +314,7 @@ export default dynamicSolver = class {
         gpuMath.setUniformForProgram("positionCalcVerlet", "u_textureDimCreases", [textureDimCreases, textureDimCreases], "2f");
         gpuMath.setUniformForProgram("positionCalcVerlet", "u_textureDimNodeCreases", [textureDimNodeCreases, textureDimNodeCreases], "2f");
         gpuMath.setUniformForProgram("positionCalcVerlet", "u_textureDimNodeFaces", [textureDimNodeFaces, textureDimNodeFaces], "2f");
-        gpuMath.setUniformForProgram("positionCalcVerlet", "u_creasePercent", globals.creasePercent, "1f");
+        gpuMath.setUniformForProgram("positionCalcVerlet", "u_creasePercent", this.config.compliant_sim.defaultCreasePercent, "1f");
         gpuMath.setUniformForProgram("positionCalcVerlet", "u_axialStiffness", this.config.compliant_sim.axialStiffness, "1f");
         gpuMath.setUniformForProgram("positionCalcVerlet", "u_faceStiffness", this.config.compliant_sim.faceStiffness, "1f");
         gpuMath.setUniformForProgram("positionCalcVerlet", "u_calcFaceStrain", this.config.compliant_sim.calcFaceStrain, "1f");
@@ -531,18 +495,16 @@ export default dynamicSolver = class {
         this.textureDimNodeFaces = this.calcTextureSize(numNodeFaces);
 
         var numEdges = 0;
-        for (var i=0; i<this.nodes.length; i++){
-            numEdges += this.nodes[i].numBeams();
+        var numNodeCreases = 0;
+        for (var node in nodes){
+            numEdges += node.numBeams();
+            numNodeCreases += node.numCreases();
         }
         this.textureDimEdges = this.calcTextureSize(numEdges);
 
         var numCreases = this.creases.length;
         this.textureDimCreases = this.calcTextureSize(numCreases);
 
-        var numNodeCreases = 0;
-        for (var i=0; i<this.nodes.length; i++){
-            numNodeCreases += this.nodes[i].numCreases();
-        }
         numNodeCreases += numCreases*2;//reactions
         this.textureDimNodeCreases = this.calcTextureSize(numNodeCreases);
 
@@ -573,7 +535,7 @@ export default dynamicSolver = class {
         this.theta = new Float32Array(textureDimCreases*textureDimCreases*4);
         this.lastTheta = new Float32Array(textureDimCreases*textureDimCreases*4);
 
-        for (var i=0; i<this.faces.length; i++){
+        for (i=0; i<this.faces.length; i++){
             var face = this.faces[i];
             this.faceVertexIndices[4*i] = face[0];
             this.faceVertexIndices[4*i+1] = face[1];
@@ -595,11 +557,11 @@ export default dynamicSolver = class {
         }
 
 
-        for (var i=0; i<this.textureDim*this.textureDim; i++){
+        for (i=0; i<this.textureDim*this.textureDim; i++){
             this.mass[4*i+1] = 1;//set all fixed by default
         }
 
-        for (var i=0; i<this.textureDimCreases*this.textureDimCreases; i++){
+        for (i=0; i<this.textureDimCreases*this.textureDimCreases; i++){
             if (i >= numCreases){
                 this.lastTheta[i*4+2] = -1;
                 this.lastTheta[i*4+3] = -1;
@@ -610,14 +572,14 @@ export default dynamicSolver = class {
         }
 
         var index = 0;
-        for (var i=0; i<this.nodes.length; i++){
+        for (i=0; i<this.nodes.length; i++){
             this.meta2[4*i] = index;
             var num = nodeFaces[i].length;
             this.meta2[4*i+1] = num;
-            for (var j=0; j<num; j++){
-                var _index = (index+j)*4;
-                var face = this.faces[nodeFaces[i][j]];
-                this.nodeFaceMeta[_index] = nodeFaces[i][j];
+            for (var k=0; k<num; k++){
+                var _index = (index+k)*4;
+                var face = this.faces[nodeFaces[i][k]];
+                this.nodeFaceMeta[_index] = nodeFaces[i][k];
                 this.nodeFaceMeta[_index+1] = face[0] == i ? -1 : face[0];
                 this.nodeFaceMeta[_index+2] = face[1] == i ? -1 : face[1];
                 this.nodeFaceMeta[_index+3] = face[2] == i ? -1 : face[2];
@@ -625,8 +587,8 @@ export default dynamicSolver = class {
             index+=num;
         }
 
-        var index = 0;
-        for (var i=0; i<this.nodes.length; i++){
+        index = 0;
+        for (i=0; i<this.nodes.length; i++){
             this.mass[4*i] = this.nodes[i].getSimMass();
             this.meta[i*4+2] = index;
             var nodeCreases = this.nodes[i].creases;
@@ -644,7 +606,7 @@ export default dynamicSolver = class {
                 index++;
             }
         }
-        for (var i=0; i<this.creases.length; i++){
+        for (i=0; i<this.creases.length; i++){
             var crease = this.creases[i];
             this.creaseMeta2[i*4] = crease.node1.getIndex();
             this.creaseMeta2[i*4+1] = crease.node2.getIndex();
@@ -654,4 +616,4 @@ export default dynamicSolver = class {
         }
     }
 
-}
+};

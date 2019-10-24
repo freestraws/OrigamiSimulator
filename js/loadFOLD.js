@@ -1,5 +1,5 @@
-const pattern = require("./pattern")
-const globals = require("./globals")
+const pattern = require("./pattern");
+const globals = require("./globals");
 
 module.exports.load = function(data){
     var fold = JSON.parse(data);
@@ -14,7 +14,7 @@ module.exports.load = function(data){
         return;
     }
     if (globals.foldUseAngles) {
-        fold = pattern.foldAngles(fold)
+        fold = pattern.foldAngles(fold);
         globals.model.buildModel(fold, allCreaseParams);
         return;
     }
@@ -28,4 +28,4 @@ module.exports.load = function(data){
     }
     fold.edges_foldAngles = foldAngles;
     pattern.setFoldData(fold);
-}
+};

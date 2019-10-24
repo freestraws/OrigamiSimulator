@@ -1,5 +1,10 @@
-const three = require("three")
-const globals = require("./globals")
-const threeView = require("./threeView")
-
-threeView.init()
+const path = require("path");
+const fs = require("fs");
+const Pattern = require("./pattern").Pattern;
+const config = require("./configParser").config;
+const saveSTL = require("./saveSTL");
+var cfg = new config().get_as_object();
+var f = JSON.parse(fs.readFileSync(path.resolve(__dirname, "test0.fold"), 'utf-8'));
+var pattern = new Pattern(cfg, f);
+var obj = saveSTL.objFileContent(pattern);
+print(obj);

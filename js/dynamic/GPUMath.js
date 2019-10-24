@@ -2,13 +2,15 @@
  * Created by ghassaei on 2/24/16.
  * nodified by freestraws on 10/1/2019
  */
-import GLBoilerPlate from "GLBoilerplate"
+const GLBoilerPlate = require("./GLBoilerPlate").GLBoilerPlate;
+var width   = 64;
+var height  = 64;
+var gl = require('gl')(width, height, { preserveDrawingBuffer: true });
 
-export default GPUMath = class {
-    constructor(canvas){
-        this.glBoilerplate = GLBoilerPlate();
-        this.canvas = canvas;
-        this.gl = this.canvas.getContext("webgl", {antialias:false}) || this.canvas.getContext("experimental-webgl", {antialias:false});
+module.exports.GPUMath = class {
+    constructor(){
+        this.glBoilerplate = new GLBoilerPlate();
+        this.gl = gl;
         this.floatTextures = this.gl.getExtension('OES_texture_float');
         if (!this.floatTextures) {
             this.notSupported();
@@ -38,7 +40,7 @@ export default GPUMath = class {
             program: program,
             uniforms: {}
         };
-    };
+    }
 
     initTextureFromData(name, width, height, typeName, data, shouldReplace){
         var texture = this.textures[name];
@@ -52,7 +54,7 @@ export default GPUMath = class {
         }
         texture = this.glBoilerplate.makeTexture(this.gl, width, height, this.gl[typeName], data);
         this.textures[name] = texture;
-    };
+    }
 
     initFrameBufferForTexture(textureName, shouldReplace){
         var framebuffer = this.frameBuffers[textureName];
@@ -79,7 +81,7 @@ export default GPUMath = class {
         }
 
         this.frameBuffers[textureName] = framebuffer;
-    };
+    }
 
     setUniformForProgram(programName, name, val, type){
         if (!this.programs[programName]){
@@ -99,12 +101,10 @@ export default GPUMath = class {
         else {
             console.warn("no uniform for type " + type);
         }
-    };
+    }
 
     setSize(width, height){
-        this.gl.viewport(0, 0, width, height);
-        this.canvas.clientWidth = width;
-        this.canvas.clientHeight = height;
+        this.gl.resize(width, height);
     };
 
     setProgram(programName){

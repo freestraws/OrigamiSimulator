@@ -2,24 +2,19 @@
  * Created by amandaghassaei on 2/24/17.
  * nodified by freestraws on 9/29/2019
  */
-
-import dynamicSolver from "dynamicSolver"
-import staticSolver from "staticSolver"
-import rigidSolver from "rigidSolver"
-
+const dynamicSolver = require("./dynamic/dynamicSolver").dynamicSolver;
+const THREE = require("three");
 //model updates object3d geometry and materials
-export default Model = class {
+module.exports.Model = class{
     constructor(config){
         this.config = config;
         this.creasePercent = 0;
-        if (this.config.vis_3d.simType == "dynamic") this.solver = new dynamicSolver();
-        else if (this.config.vis_3d.simType == "static") this.solver = new staticSolver();
-        else this.solver = new rigidSolver();
+        this.solver = new dynamicSolver();
         this.material, this.material2, this.geometry;
         this.frontside = new THREE.Mesh(); //front face of mesh
         this.backside = new THREE.Mesh(); //back face of mesh (different color)
         this.backside.visible = false;
-    
+
         this.lineMaterial = new THREE.LineBasicMaterial({color: 0x000000, linewidth: 1});
         this.hingeLines = new THREE.LineSegments(null, this.lineMaterial);
         this.mountainLines = new THREE.LineSegments(null, this.lineMaterial);
@@ -27,7 +22,7 @@ export default Model = class {
         this.cutLines = new THREE.LineSegments(null, this.lineMaterial);
         this.facetLines = new THREE.LineSegments(null, this.lineMaterial);
         this.borderLines = new THREE.LineSegments(null, this.lineMaterial);
-    
+
         this.lines = {
             U: this.hingeLines,
             M: this.mountainLines,
@@ -46,11 +41,11 @@ export default Model = class {
         this.creases = [];
         this.vertices = []; //indexed vertices array
         this.fold, this.creaseParams;
-    
+
         this.nextCreaseParams, this.nextFold; //todo only nextFold, nextCreases?
-    
+
         this.inited = false;
-    
+
         this.clearGeometries();
         this.setMeshMaterial();
         // globals.threeView.sceneAddModel(frontside);
@@ -72,8 +67,8 @@ export default Model = class {
         this.backside.geometry = this.geometry;
         // this.geometry.verticesNeedUpdate = true;
         this.geometry.dynamic = true;
-
-        _.each(this.lines, function(line){
+        for(var k in this.lines){
+            var line = this.lines[k];
             var lineGeometry = line.geometry;
             if (lineGeometry) {
                 line.geometry = null;
@@ -84,7 +79,7 @@ export default Model = class {
             line.geometry = lineGeometry;
             // lineGeometry.verticesNeedUpdate = true;
             lineGeometry.dynamic = true;
-        });
+        }
     }
 
     setCreasePercent(percent){
@@ -135,8 +130,8 @@ export default Model = class {
             this.material2.color.setStyle( "#" + this.config.view.color2);
             this.backside.visible = true;
         }
-        this.frontside.material = material;
-        this.backside.material = material2;
+        this.frontside.material = this.material;
+        this.backside.material = this.material2;
     }
 
     updateEdgeVisibility(){
@@ -321,7 +316,7 @@ export default Model = class {
             lineIndices[assignment].push(edge[0]);
             lineIndices[assignment].push(edge[1]);
         }
-        _.each(this.lines, function(line, key){
+        this.lines.forEach(function(line, key){
             var indicesArray = lineIndices[key];
             var indices = new Uint16Array(indicesArray.length);
             for (var i=0; i<indicesArray.length; i++){

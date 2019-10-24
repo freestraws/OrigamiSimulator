@@ -1,17 +1,18 @@
-import { readFileSync, writeFileSync } from 'fs'
-import { parse, stringify } from 'ini'
+const fs = require("fs");
+const ini = require("ini");
+const path = require("path");
 
-export default class config{
-    constructor(path='./config.ini'){
-        this.path = path
-        this.config = parse(readFileSync(path, 'utf-8'))
+module.exports.config = class{
+    constructor(_path='./config.ini'){
+        this.path = _path;
+        this.config = ini.parse(fs.readFileSync(path.resolve(__dirname, this.path), 'utf-8'));
     }
 
     get_as_object(){
-        return this.config
+        return this.config;
     }
     
     write(new_config){
-        writeFileSync(this.path, stringify(new_config))
+        fs.writeFileSync(this.path, ini.stringify(new_config));
     }
-}
+};
