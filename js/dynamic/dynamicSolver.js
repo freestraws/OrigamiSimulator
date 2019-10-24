@@ -3,8 +3,11 @@
  * nodified by freestraws on 9/29/2019
  */
 
-const shader_dir = "../shaders/";
 const GPUMath = require("./GPUMath").GPUMath;
+const fs = require('fs');
+const path = require('path');
+
+const shader_dir = path.join(__dirname, "/../shaders/");
 
 module.exports.dynamicSolver = class {
     constructor(config) {
@@ -208,20 +211,21 @@ module.exports.dynamicSolver = class {
 
     calcDt(){
         var maxFreqNat = 0;
-        _.each(this.edges, function(beam){
+        this.edges.forEach(function(beam){
             if (beam.getNaturalFrequency()>maxFreqNat) maxFreqNat = beam.getNaturalFrequency();
-        });
+        })
         return (1/(2*Math.PI*maxFreqNat))*0.9;//0.9 of max delta t for good measure
     }
 
     initTexturesAndPrograms(){
         var gpuMath = this.gpuMath;
-        var vertexShader = fs.open(shader_dir + "vertexShader.glsl");
+        var vertexShader = fs.readFileSync(path.join(shader_dir + "vertexShader.glsl"));
         var textureDim = this.textureDim;
         var textureDimCreases = this.textureDimCreases;
         var textureDimNodeFaces = this.textureDimNodeFaces;
         var textureDimFaces = this.textureDimFaces;
         var textureDimNodeCreases = this.textureDimNodeCreases;
+        var textureDimEdges = this.textureDimEdges;
 
         gpuMath.initTextureFromData("u_position", textureDim, textureDim, "FLOAT", this.position, true);
         gpuMath.initTextureFromData("u_lastPosition", textureDim, textureDim, "FLOAT", this.lastPosition, true);
@@ -252,19 +256,19 @@ module.exports.dynamicSolver = class {
         gpuMath.initTextureFromData("u_faceVertexIndices", textureDimFaces, textureDimFaces, "FLOAT", this.faceVertexIndices, true);
         gpuMath.initTextureFromData("u_nominalTriangles", textureDimFaces, textureDimFaces, "FLOAT", this.nominalTriangles, true);
 
-        gpuMath.createProgram("positionCalc", vertexShader, fs.open(shader_dir + "positionCalcShader.glsl"));
+        gpuMath.createProgram("positionCalc", vertexShader, path.join(shader_dir, "positionCalcShader.glsl"));
         gpuMath.setUniformForProgram("positionCalc", "u_velocity", 0, "1i");
         gpuMath.setUniformForProgram("positionCalc", "u_lastPosition", 1, "1i");
         gpuMath.setUniformForProgram("positionCalc", "u_mass", 2, "1i");
         gpuMath.setUniformForProgram("positionCalc", "u_textureDim", [textureDim, textureDim], "2f");
 
-        gpuMath.createProgram("velocityCalcVerlet", vertexShader, fs.open(shader_dir + "velocityCalcVerletShader.glsl"));
+        gpuMath.createProgram("velocityCalcVerlet", vertexShader, path.join(shader_dir, "velocityCalcVerletShader.glsl"));
         gpuMath.setUniformForProgram("velocityCalcVerlet", "u_position", 0, "1i");
         gpuMath.setUniformForProgram("velocityCalcVerlet", "u_lastPosition", 1, "1i");
         gpuMath.setUniformForProgram("velocityCalcVerlet", "u_mass", 2, "1i");
         gpuMath.setUniformForProgram("velocityCalcVerlet", "u_textureDim", [textureDim, textureDim], "2f");
 
-        gpuMath.createProgram("velocityCalc", vertexShader, fs.open(shader_dir + "velocityCalcShader.glsl"));
+        gpuMath.createProgram("velocityCalc", vertexShader, path.join(shader_dir, "velocityCalcShader.glsl"));
         gpuMath.setUniformForProgram("velocityCalc", "u_lastPosition", 0, "1i");
         gpuMath.setUniformForProgram("velocityCalc", "u_lastVelocity", 1, "1i");
         gpuMath.setUniformForProgram("velocityCalc", "u_originalPosition", 2, "1i");
@@ -291,7 +295,7 @@ module.exports.dynamicSolver = class {
         gpuMath.setUniformForProgram("velocityCalc", "u_faceStiffness", this.config.compliant_sim.faceStiffness, "1f");
         gpuMath.setUniformForProgram("velocityCalc", "u_calcFaceStrain", this.config.compliant_sim.calcFaceStrain, "1f");
 
-        gpuMath.createProgram("positionCalcVerlet", vertexShader, fs.open(shader_dir + "positionCalcVerletShader.glsl"));
+        gpuMath.createProgram("positionCalcVerlet", vertexShader, path.join(shader_dir, "positionCalcVerletShader.glsl"));
         gpuMath.setUniformForProgram("positionCalcVerlet", "u_lastPosition", 0, "1i");
         gpuMath.setUniformForProgram("positionCalcVerlet", "u_lastLastPosition", 1, "1i");
         gpuMath.setUniformForProgram("positionCalcVerlet", "u_lastVelocity", 2, "1i");
@@ -319,7 +323,7 @@ module.exports.dynamicSolver = class {
         gpuMath.setUniformForProgram("positionCalcVerlet", "u_faceStiffness", this.config.compliant_sim.faceStiffness, "1f");
         gpuMath.setUniformForProgram("positionCalcVerlet", "u_calcFaceStrain", this.config.compliant_sim.calcFaceStrain, "1f");
 
-        gpuMath.createProgram("thetaCalc", vertexShader, fs.open(shader_dir + "thetaCalcShader.glsl"));
+        gpuMath.createProgram("thetaCalc", vertexShader, path.join(shader_dir, "thetaCalcShader.glsl"));
         gpuMath.setUniformForProgram("thetaCalc", "u_normals", 0, "1i");
         gpuMath.setUniformForProgram("thetaCalc", "u_lastTheta", 1, "1i");
         gpuMath.setUniformForProgram("thetaCalc", "u_creaseVectors", 2, "1i");
@@ -329,33 +333,33 @@ module.exports.dynamicSolver = class {
         gpuMath.setUniformForProgram("thetaCalc", "u_textureDimFaces", [textureDimFaces, textureDimFaces], "2f");
         gpuMath.setUniformForProgram("thetaCalc", "u_textureDimCreases", [textureDimCreases, textureDimCreases], "2f");
 
-        gpuMath.createProgram("normalCalc", vertexShader, fs.open(shader_dir + "normalCalc.glsl"));
+        gpuMath.createProgram("normalCalc", vertexShader, path.join(shader_dir, "normalCalc.glsl"));
         gpuMath.setUniformForProgram("normalCalc", "u_faceVertexIndices", 0, "1i");
         gpuMath.setUniformForProgram("normalCalc", "u_lastPosition", 1, "1i");
         gpuMath.setUniformForProgram("normalCalc", "u_originalPosition", 2, "1i");
         gpuMath.setUniformForProgram("normalCalc", "u_textureDim", [textureDim, textureDim], "2f");
         gpuMath.setUniformForProgram("normalCalc", "u_textureDimFaces", [textureDimFaces, textureDimFaces], "2f");
 
-        gpuMath.createProgram("packToBytes", vertexShader, fs.open(shader_dir + "packToBytesShader.glsl"));
+        gpuMath.createProgram("packToBytes", vertexShader, path.join(shader_dir, "packToBytesShader.glsl"));
         gpuMath.initTextureFromData("outputBytes", textureDim*4, textureDim, "UNSIGNED_BYTE", null, true);
         gpuMath.initFrameBufferForTexture("outputBytes", true);
         gpuMath.setUniformForProgram("packToBytes", "u_floatTextureDim", [textureDim, textureDim], "2f");
         gpuMath.setUniformForProgram("packToBytes", "u_floatTexture", 0, "1i");
 
-        gpuMath.createProgram("zeroTexture", vertexShader, fs.open(shader_dir + "zeroTexture.glsl"));
-        gpuMath.createProgram("zeroThetaTexture", vertexShader, fs.open(shader_dir + "zeroThetaTexture.glsl"));
+        gpuMath.createProgram("zeroTexture", vertexShader, path.join(shader_dir, "zeroTexture.glsl"));
+        gpuMath.createProgram("zeroThetaTexture", vertexShader, path.join(shader_dir, "zeroThetaTexture.glsl"));
         gpuMath.setUniformForProgram("zeroThetaTexture", "u_theta", 0, "1i");
         gpuMath.setUniformForProgram("zeroThetaTexture", "u_textureDimCreases", [textureDimCreases, textureDimCreases], "2f");
 
-        gpuMath.createProgram("centerTexture", vertexShader, fs.open(shader_dir + "centerTexture.glsl"));
+        gpuMath.createProgram("centerTexture", vertexShader, path.join(shader_dir, "centerTexture.glsl"));
         gpuMath.setUniformForProgram("centerTexture", "u_lastPosition", 0, "1i");
         gpuMath.setUniformForProgram("centerTexture", "u_textureDim", [textureDim, textureDim], "2f");
 
-        gpuMath.createProgram("copyTexture", vertexShader, fs.open(shader_dir + "copyTexture.glsl"));
+        gpuMath.createProgram("copyTexture", vertexShader, path.join(shader_dir, "copyTexture.glsl"));
         gpuMath.setUniformForProgram("copyTexture", "u_orig", 0, "1i");
         gpuMath.setUniformForProgram("copyTexture", "u_textureDim", [textureDim, textureDim], "2f");
 
-        gpuMath.createProgram("updateCreaseGeo", vertexShader, fs.open(shader_dir + "updateCreaseGeo.glsl"));
+        gpuMath.createProgram("updateCreaseGeo", vertexShader, path.join(shader_dir, "updateCreaseGeo.glsl"));
         gpuMath.setUniformForProgram("updateCreaseGeo", "u_lastPosition", 0, "1i");
         gpuMath.setUniformForProgram("updateCreaseGeo", "u_originalPosition", 1, "1i");
         gpuMath.setUniformForProgram("updateCreaseGeo", "u_creaseMeta2", 2, "1i");
@@ -496,10 +500,10 @@ module.exports.dynamicSolver = class {
 
         var numEdges = 0;
         var numNodeCreases = 0;
-        for (var node in nodes){
-            numEdges += node.numBeams();
-            numNodeCreases += node.numCreases();
-        }
+        this.nodes.forEach((n) => {
+            numEdges += n.numBeams();
+            numNodeCreases += n.numCreases();
+        })
         this.textureDimEdges = this.calcTextureSize(numEdges);
 
         var numCreases = this.creases.length;
@@ -511,29 +515,29 @@ module.exports.dynamicSolver = class {
         var numFaces = this.faces.length;
         this.textureDimFaces = this.calcTextureSize(numFaces);
 
-        this.originalPosition = new Float32Array(textureDim*textureDim*4);
-        this.position = new Float32Array(textureDim*textureDim*4);
-        this.lastPosition = new Float32Array(textureDim*textureDim*4);
-        this.lastLastPosition = new Float32Array(textureDim*textureDim*4);
-        this.velocity = new Float32Array(textureDim*textureDim*4);
-        this.lastVelocity = new Float32Array(textureDim*textureDim*4);
-        this.externalForces = new Float32Array(textureDim*textureDim*4);
-        this.mass = new Float32Array(textureDim*textureDim*4);
-        this.meta = new Float32Array(textureDim*textureDim*4);
-        this.meta2 = new Float32Array(textureDim*textureDim*4);
-        this.beamMeta = new Float32Array(textureDimEdges*textureDimEdges*4);
+        this.originalPosition = new Float32Array(this.textureDim*this.textureDim*4);
+        this.position = new Float32Array(this.textureDim*this.textureDim*4);
+        this.lastPosition = new Float32Array(this.textureDim*this.textureDim*4);
+        this.lastLastPosition = new Float32Array(this.textureDim*this.textureDim*4);
+        this.velocity = new Float32Array(this.textureDim*this.textureDim*4);
+        this.lastVelocity = new Float32Array(this.textureDim*this.textureDim*4);
+        this.externalForces = new Float32Array(this.textureDim*this.textureDim*4);
+        this.mass = new Float32Array(this.textureDim*this.textureDim*4);
+        this.meta = new Float32Array(this.textureDim*this.textureDim*4);
+        this.meta2 = new Float32Array(this.textureDim*this.textureDim*4);
+        this.beamMeta = new Float32Array(this.textureDimEdges*this.textureDimEdges*4);
 
-        this.normals = new Float32Array(textureDimFaces*textureDimFaces*4);
-        this.faceVertexIndices = new Float32Array(textureDimFaces*textureDimFaces*4);
-        this.creaseMeta = new Float32Array(textureDimCreases*textureDimCreases*4);
-        this.nodeFaceMeta = new Float32Array(textureDimNodeFaces*textureDimNodeFaces*4);
-        this.nominalTriangles = new Float32Array(textureDimFaces*textureDimFaces*4);
-        this.nodeCreaseMeta = new Float32Array(textureDimNodeCreases*textureDimNodeCreases*4);
-        this.creaseMeta2 = new Float32Array(textureDimCreases*textureDimCreases*4);
-        this.creaseGeo = new Float32Array(textureDimCreases*textureDimCreases*4);
-        this.creaseVectors = new Float32Array(textureDimCreases*textureDimCreases*4);
-        this.theta = new Float32Array(textureDimCreases*textureDimCreases*4);
-        this.lastTheta = new Float32Array(textureDimCreases*textureDimCreases*4);
+        this.normals = new Float32Array(this.textureDimFaces*this.textureDimFaces*4);
+        this.faceVertexIndices = new Float32Array(this.textureDimFaces*this.textureDimFaces*4);
+        this.creaseMeta = new Float32Array(this.textureDimCreases*this.textureDimCreases*4);
+        this.nodeFaceMeta = new Float32Array(this.textureDimNodeFaces*this.textureDimNodeFaces*4);
+        this.nominalTriangles = new Float32Array(this.textureDimFaces*this.textureDimFaces*4);
+        this.nodeCreaseMeta = new Float32Array(this.textureDimNodeCreases*this.textureDimNodeCreases*4);
+        this.creaseMeta2 = new Float32Array(this.textureDimCreases*this.textureDimCreases*4);
+        this.creaseGeo = new Float32Array(this.textureDimCreases*this.textureDimCreases*4);
+        this.creaseVectors = new Float32Array(this.textureDimCreases*this.textureDimCreases*4);
+        this.theta = new Float32Array(this.textureDimCreases*this.textureDimCreases*4);
+        this.lastTheta = new Float32Array(this.textureDimCreases*this.textureDimCreases*4);
 
         for (i=0; i<this.faces.length; i++){
             var face = this.faces[i];

@@ -4,7 +4,8 @@
   "description": "Live demo at <a href=\"http://apps.amandaghassaei.com/OrigamiSimulator\">apps.amandaghassaei.com/OrigamiSimulator</a><br/>",
   "main": "js/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "run": "node --inspect-brk js/index.js"
   },
   "repository": {
     "type": "git",

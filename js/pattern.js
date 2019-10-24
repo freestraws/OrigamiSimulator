@@ -244,13 +244,12 @@ module.exports.Pattern = class{
     }
 
     processFold(fold, returnCreaseParams){
-        var rawFold = this.rawfold;
-        rawFold = JSON.parse(JSON.stringify(fold));//save pre-triangulated for for save later
+        this.rawFold = JSON.parse(JSON.stringify(fold));//save pre-triangulated for for save later
         //make 3d
-        for (var i=0;i<rawFold.vertices_coords.length;i++){
-            var vertex = rawFold.vertices_coords[i];
+        for (var i=0;i<this.rawFold.vertices_coords.length;i++){
+            var vertex = this.rawFold.vertices_coords[i];
             if (vertex.length === 2) {//make vertices_coords 3d
-                rawFold.vertices_coords[i] = [vertex[0], 0, vertex[1]];
+                this.rawFold.vertices_coords[i] = [vertex[0], 0, vertex[1]];
             }
         }
 
@@ -288,6 +287,7 @@ module.exports.Pattern = class{
         if (returnCreaseParams) return allCreaseParams;
 
         this.model.buildModel(foldData, allCreaseParams);
+        this.foldData = foldData;
         return foldData;
     }
 
@@ -532,8 +532,9 @@ module.exports.Pattern = class{
                             }
 
                             creaseParams.push(i);
-                            var angle = fold.edges_foldAngles[i];
-                            creaseParams.push(angle);
+                            // TODO fix this!
+                            // var angle = fold.edges_foldAngles[i];
+                            // creaseParams.push(angle);
                             allCreaseParams.push(creaseParams);
                             break;
                         }
@@ -869,17 +870,17 @@ module.exports.Pattern = class{
     }
 
     getFoldData(raw){
-        if (raw) return rawFold;
-        return foldData;
+        if (raw) return this.rawFold;
+        return this.foldData;
     }
 
     setFoldData(fold, returnCreaseParams){
-        clearAll();
-        return processFold(fold, returnCreaseParams);
+        this.clearAll();
+        return this.processFold(fold, returnCreaseParams);
     }
 
     getTriangulatedFaces(){
-        return foldData.faces_vertices;
+        return this.foldData.faces_vertices;
     }
 
     collapseTriangulate(fold){
@@ -901,16 +902,16 @@ module.exports.Pattern = class{
     
         fold = FOLD.convert.edges_vertices_to_vertices_vertices_unsorted(fold);
         fold = this.removeStrayVertices(fold); //delete stray anchors
-        fold = pattern.removeRedundantVertices(fold, 0.01); //remove vertices that split edge
+        fold = this.removeRedundantVertices(fold, 0.01); //remove vertices that split edge
     
-        fold.vertices_vertices = FOLD.convert.sort_vertices_vertices(fold);
+        fold = FOLD.convert.sort_vertices_vertices(fold);
         fold = FOLD.convert.vertices_vertices_to_faces_vertices(fold);
     
         fold = this.edgesVerticesToVerticesEdges(fold);
         fold = this.removeBorderFaces(fold); //expose holes surrounded by all border edges
     
         fold = this.reverseFaceOrder(fold); //set faces to counter clockwise
-    
+        this.foldData = this.processFold(fold);
         return this.processFold(fold);
     }
 }

@@ -1,6 +1,7 @@
 /**
  * Created by amandaghassaei on 5/2/17.
  */
+const THREE = require("three");
 module.exports.makeSaveGEO = function(model, doublesided){
     var geo = new THREE.Geometry().fromBufferGeometry( model.getGeometry() );
 
@@ -85,12 +86,12 @@ module.exports.objFileContent = function(pattern){
         return;
     }
     geo.vertices.forEach(function(_, index){
-        this[index].multiplyScalar(pattern.config.exportScale/pattern.config.scale);
+        this[index].multiplyScalar(parseFloat(pattern.config.save_stl.exportScale)/pattern.config.scale);
     }, geo.vertices);
 
     var fold = pattern.getFoldData(false);
     var obj = "#output from http://apps.amandaghassaei.com/OrigamiSimulator/\n";
-    obj += "# "+ geo.vertices.length + "vertices\n";
+    obj += "# "+ geo.vertices.length + " vertices\n";
     obj = geo.vertices.reduce(function(acc, vertex){
         return acc + "v " + vertex.x + " " + vertex.y + " " + vertex.z + "\n";
     }, obj);

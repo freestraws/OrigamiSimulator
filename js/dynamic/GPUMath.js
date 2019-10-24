@@ -7,6 +7,8 @@ var width   = 64;
 var height  = 64;
 var gl = require('gl')(width, height, { preserveDrawingBuffer: true });
 
+const fs = require('fs');
+
 module.exports.GPUMath = class {
     constructor(){
         this.glBoilerplate = new GLBoilerPlate();
@@ -26,6 +28,7 @@ module.exports.GPUMath = class {
     }
 
     createProgram(programName, vertexShader, fragmentShader){
+        fragmentShader = fs.readFileSync(fragmentShader);
         var programs = this.programs;
         var program = programs[programName];
         if (program) {

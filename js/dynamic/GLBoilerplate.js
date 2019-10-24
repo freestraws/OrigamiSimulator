@@ -71,7 +71,7 @@ module.exports.GLBoilerPlate = class{
      * @return {!WebGLShader} A shader.
      */
     createShaderFromSource(gl, shaderSource, shaderType) {
-      return compileShader(gl, shaderSource, shaderType);
+      return this.compileShader(gl, shaderSource, shaderType);
     }
 
     /**
@@ -85,7 +85,7 @@ module.exports.GLBoilerPlate = class{
     createProgramFromSource(gl, vertexShader, fragmentShader) {
       vertexShader = this.createShaderFromSource(gl, vertexShader, gl.VERTEX_SHADER);
       fragmentShader = this.createShaderFromSource(gl, fragmentShader, gl.FRAGMENT_SHADER);
-      return createProgram(gl, vertexShader, fragmentShader);
+      return this.createProgram(gl, vertexShader, fragmentShader);
     }
 
     loadVertexData(gl, program) {
