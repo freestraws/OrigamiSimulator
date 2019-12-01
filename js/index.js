@@ -7,4 +7,4 @@ var cfg = new config().get_as_object();
 var f = JSON.parse(fs.readFileSync(path.resolve(__dirname, "test0.fold"), 'utf-8'));
 var pattern = new Pattern(cfg, f);
 var obj = saveSTL.objFileContent(pattern);
-print(obj);
+console.log(obj);

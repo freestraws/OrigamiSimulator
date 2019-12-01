@@ -97,7 +97,3 @@ module.exports._globals = {
     isGif: false,
     shouldAnimateFoldPercent: false
 };
-
-module.exports.noCreasePatternAvailable = function (){
-    return _globals.extension == "fold";
-}

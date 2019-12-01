@@ -4,3 +4,5 @@ todo.rtf
 
 CreasePatternScripts/**/*.pdf
 CreasePatternScripts/**/*.svg
+node_modules/*
+.jshintrc

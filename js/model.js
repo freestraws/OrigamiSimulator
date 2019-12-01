@@ -4,12 +4,15 @@
  */
 const dynamicSolver = require("./dynamic/dynamicSolver").dynamicSolver;
 const THREE = require("three");
+const Node = require("./node").Node;
+const Beam = require("./beam").Beam;
+const Crease = require("./crease").Crease;
 //model updates object3d geometry and materials
 module.exports.Model = class{
     constructor(config){
         this.config = config;
         this.creasePercent = 0;
-        this.solver = new dynamicSolver();
+        this.solver = new dynamicSolver(this.config);
         this.material, this.material2, this.geometry;
         this.frontside = new THREE.Mesh(); //front face of mesh
         this.backside = new THREE.Mesh(); //back face of mesh (different color)
@@ -189,7 +192,7 @@ module.exports.Model = class{
     }
 
     startSolver(){
-        global.threeView.startAnimation();
+        // global.threeView.startAnimation();
     }
 
     getSolver(){
@@ -214,8 +217,7 @@ module.exports.Model = class{
         this.nextFold = fold;
         this.nextCreaseParams = creaseParams;
 
-        global.needsSync = true;
-        global.simNeedsSync = true;
+        this.sync();
 
         if (!this.inited) {
             this.startSolver();//start animation loop
@@ -236,7 +238,7 @@ module.exports.Model = class{
             this.creases[i].destroy();
         }
 
-        this.fold = nextFold;
+        this.fold = this.nextFold;
         this.nodes = [];
         this.edges = [];
         this.faces = this.fold.faces_vertices;
@@ -258,7 +260,7 @@ module.exports.Model = class{
         // _nodes[_faces[0][2]].setFixed(true);
 
         for (var i=0; i<_edges.length; i++) {
-            this.edges.push(new Beam([this.nodes[_edges[i][0]], this.nodes[_edges[i][1]]]));
+            this.edges.push(new Beam([this.nodes[_edges[i][0]], this.nodes[_edges[i][1]]], this.config.compliant_sim.axialStiffness, this.config.dynamic_sim.percentDamping));
         }
 
         for (var i=0; i<this.creaseParams.length; i++) {//allCreaseParams.length
@@ -271,14 +273,6 @@ module.exports.Model = class{
         this.vertices = [];
         for (var i=0; i<this.nodes.length; i++){
             this.vertices.push(this.nodes[i].getOriginalPosition());
-        }
-
-        if (globals.noCreasePatternAvailable() && this.config.navMode == "pattern"){
-            //switch to simulation mode
-            $("#navSimulation").parent().addClass("open");
-            $("#navPattern").parent().removeClass("open");
-            $("#svgViewer").hide();
-            this.config.navMode = "simulation";
         }
 
         this.positions = new Float32Array(this.vertices.length*3);
@@ -316,7 +310,7 @@ module.exports.Model = class{
             lineIndices[assignment].push(edge[0]);
             lineIndices[assignment].push(edge[1]);
         }
-        this.lines.forEach(function(line, key){
+        for (var key in this.lines){
             var indicesArray = lineIndices[key];
             var indices = new Uint16Array(indicesArray.length);
             for (var i=0; i<indicesArray.length; i++){
@@ -329,11 +323,11 @@ module.exports.Model = class{
             this.lines[key].geometry.computeBoundingBox();
             this.lines[key].geometry.computeBoundingSphere();
             this.lines[key].geometry.center();
-        });
+        }
 
         this.geometry.addAttribute('position', positionsAttribute);
-        this.geometry.addAttribute('color', new THREE.BufferAttribute(colors, 3));
-        this.geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+        this.geometry.addAttribute('color', new THREE.BufferAttribute(this.colors, 3));
+        this.geometry.setIndex(new THREE.BufferAttribute(this.indices, 1));
         // this.geometry.attributes.position.needsUpdate = true;
         // this.geometry.index.needsUpdate = true;
         // this.geometry.verticesNeedUpdate = true;
@@ -355,7 +349,7 @@ module.exports.Model = class{
 
         //update vertices and edges
         for (var i=0; i<this.vertices.length; i++){
-            this.nodes[i].setOriginalPosition(positions[3*i], positions[3*i+1], positions[3*i+2]);
+            this.nodes[i].setOriginalPosition(this.positions[3*i], this.positions[3*i+1], this.positions[3*i+2]);
         }
         for (var i=0; i<this.edges.length; i++){
             this.edges[i].recalcOriginalLength();
@@ -365,9 +359,7 @@ module.exports.Model = class{
         this.updateMeshVisibility();
 
         this.syncSolver();
-
-        global.needsSync = false;
-        if (!global.simulationRunning) reset();
+        this.reset();
     }
 
     syncSolver(){

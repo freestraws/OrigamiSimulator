@@ -32,9 +32,7 @@ module.exports.Pattern = class{
         this.badColors = [];//store any bad colors in svg file to show user
         
         this.clearAll();
-        if (fold){
-            this.collapseTriangulate(fold);
-        }
+        this.foldData = this.collapseTriangulate(fold);
     }
 
     clearFold(){
@@ -66,6 +64,38 @@ module.exports.Pattern = class{
         this.triangulations = [];
 
         this.badColors = [];
+    }
+
+    collapseTriangulate(fold){
+        console.log(fold);
+        fold = FOLD.filter.collapseNearbyVertices(fold, parseInt(this.config.import_pattern.vertTol));
+        
+        console.log(fold.edges_vertices);
+        //TODO: track bug down further into removeLoopEdges
+        FOLD.filter.removeLoopEdges(fold); //remove edges that points to same vertex
+        console.log(fold.edges_vertices);
+        FOLD.filter.removeDuplicateEdges_vertices(fold); //remove duplicate edges
+        //fold = FOLD.filter.subdivideCrossingEdges_vertices(fold, parseInt(this.config.import_pattern.vertTol));//find intersections and add vertices/edges
+    
+        fold = this.findIntersections(fold, parseInt(this.config.import_pattern.vertTol));
+        //cleanup after intersection operation
+        fold = FOLD.filter.collapseNearbyVertices(fold, parseInt(this.config.import_pattern.vertTol));
+        FOLD.filter.removeLoopEdges(fold); //remove edges that points to same vertex
+        FOLD.filter.removeDuplicateEdges_vertices(fold); //remove duplicate edges
+    
+        fold = FOLD.convert.edges_vertices_to_vertices_vertices_unsorted(fold);
+        fold = this.removeStrayVertices(fold); //delete stray anchors
+        fold = this.removeRedundantVertices(fold, 0.01); //remove vertices that split edge
+    
+        fold = FOLD.convert.sort_vertices_vertices(fold);
+        fold = FOLD.convert.vertices_vertices_to_faces_vertices(fold);
+    
+        fold = this.edgesVerticesToVerticesEdges(fold);
+        fold = this.removeBorderFaces(fold); //expose holes surrounded by all border edges
+    
+        fold = this.reverseFaceOrder(fold); //set faces to counter clockwise
+    
+        return this.processFold(fold);
     }
 
     applyTransformation(vertex, transformations){
@@ -254,12 +284,12 @@ module.exports.Pattern = class{
             }
         }
 
-        var cuts = FOLD.filter.cutEdges(fold);
-        if (cuts.length>0) {
-            fold = this.splitCuts(fold);
-            fold = FOLD.convert.edges_vertices_to_vertices_vertices_unsorted(fold);
-            fold = this.removeRedundantVertices(fold, 0.01);//remove vertices that split edge
-        }
+        // var cuts = FOLD.filter.cutEdges(fold);
+        // if (cuts.length>0) {
+        //     fold = this.splitCuts(fold);
+        //     fold = FOLD.convert.edges_vertices_to_vertices_vertices_unsorted(fold);
+        //     fold = this.removeRedundantVertices(fold, 0.01);//remove vertices that split edge
+        // }
         delete fold.vertices_vertices;
         delete fold.vertices_edges;
         var foldData = this.foldData;
@@ -532,8 +562,8 @@ module.exports.Pattern = class{
                             }
 
                             creaseParams.push(i);
-                            var angle = fold.edges_foldAngles[i];
-                            creaseParams.push(angle);
+                            // var angle = fold.edges_foldAngles[i];
+                            // creaseParams.push(angle);
                             allCreaseParams.push(creaseParams);
                             break;
                         }
@@ -869,58 +899,26 @@ module.exports.Pattern = class{
     }
 
     getFoldData(raw){
-        if (raw) return rawFold;
-        return foldData;
+        if (raw) return this.rawFold;
+        return this.foldData;
     }
 
     setFoldData(fold, returnCreaseParams){
-        clearAll();
-        return processFold(fold, returnCreaseParams);
+        this.clearAll();
+        return this.processFold(fold, returnCreaseParams);
     }
 
     getTriangulatedFaces(){
-        return foldData.faces_vertices;
+        return this.foldData.faces_vertices;
     }
-
-    collapseTriangulate(fold){
-        if (!fold){
-            fold = this.foldData;
-        }
-        // fold = FOLD.filter.collapseNearbyVertices(fold, this.config.import_pattern.vertTol);
-        // console.log(fold.edges_vertices);
-        // fold = FOLD.filter.removeLoopEdges(fold); //remove edges that points to same vertex
-        // console.log(fold.edges_vertices);
-        // fold = FOLD.filter.removeDuplicateEdges_vertices(fold); //remove duplicate edges
-        // fold = FOLD.filter.subdivideCrossingEdges_vertices(fold, globals.vertTol)//find intersections and add vertices/edges
-    
-        fold = this.findIntersections(fold, this.config.import_pattern.vertTol);
-        //cleanup after intersection operation
-        fold = FOLD.filter.collapseNearbyVertices(fold, this.config.import_pattern.vertTol);
-        fold = FOLD.filter.removeLoopEdges(fold); //remove edges that points to same vertex
-        fold = FOLD.filter.removeDuplicateEdges_vertices(fold); //remove duplicate edges
-    
-        fold = FOLD.convert.edges_vertices_to_vertices_vertices_unsorted(fold);
-        fold = this.removeStrayVertices(fold); //delete stray anchors
-        fold = pattern.removeRedundantVertices(fold, 0.01); //remove vertices that split edge
-    
-        fold.vertices_vertices = FOLD.convert.sort_vertices_vertices(fold);
-        fold = FOLD.convert.vertices_vertices_to_faces_vertices(fold);
-    
-        fold = this.edgesVerticesToVerticesEdges(fold);
-        fold = this.removeBorderFaces(fold); //expose holes surrounded by all border edges
-    
-        fold = this.reverseFaceOrder(fold); //set faces to counter clockwise
-    
-        return this.processFold(fold);
-    }
-}
+};
 
 function makeVector(v){
     if (v.length == 2) return makeVector2(v);
     return makeVector3(v);
 }
 function makeVector2(v){
-    return new THREE.Vector2(v[0], v[1]);
+    return new THREE.Vector2(v[0], v[2]);
 }
 function makeVector3(v){
     return new THREE.Vector3(v[0], v[1], v[2]);
