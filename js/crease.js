@@ -2,8 +2,8 @@
  * Created by amandaghassaei on 2/25/17.
  */
 
- module.exports.Crease = class{
-     constructor(edge, face1Index, face2Index, targetTheta, type, node1, node2, index){
+module.exports.Crease = class{
+    constructor(edge, face1Index, face2Index, targetTheta, type, node1, node2, index){
         //type = 0 panel, 1 crease
 
         //face1 corresponds to node1, face2 to node2

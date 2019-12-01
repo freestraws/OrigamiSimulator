@@ -274,13 +274,12 @@ module.exports.Pattern = class{
     }
 
     processFold(fold, returnCreaseParams){
-        var rawFold = this.rawfold;
-        rawFold = JSON.parse(JSON.stringify(fold));//save pre-triangulated for for save later
+        this.rawFold = JSON.parse(JSON.stringify(fold));//save pre-triangulated for for save later
         //make 3d
-        for (var i=0;i<rawFold.vertices_coords.length;i++){
-            var vertex = rawFold.vertices_coords[i];
+        for (var i=0;i<this.rawFold.vertices_coords.length;i++){
+            var vertex = this.rawFold.vertices_coords[i];
             if (vertex.length === 2) {//make vertices_coords 3d
-                rawFold.vertices_coords[i] = [vertex[0], 0, vertex[1]];
+                this.rawFold.vertices_coords[i] = [vertex[0], 0, vertex[1]];
             }
         }
 
@@ -318,6 +317,7 @@ module.exports.Pattern = class{
         if (returnCreaseParams) return allCreaseParams;
 
         this.model.buildModel(foldData, allCreaseParams);
+        this.foldData = foldData;
         return foldData;
     }
 
@@ -562,6 +562,10 @@ module.exports.Pattern = class{
                             }
 
                             creaseParams.push(i);
+<<<<<<< HEAD
+=======
+                            // TODO fix this!
+>>>>>>> 64b01f034cf24fff986e011f9071bbd6fc64980f
                             // var angle = fold.edges_foldAngles[i];
                             // creaseParams.push(angle);
                             allCreaseParams.push(creaseParams);
@@ -911,7 +915,43 @@ module.exports.Pattern = class{
     getTriangulatedFaces(){
         return this.foldData.faces_vertices;
     }
+<<<<<<< HEAD
 };
+=======
+
+    collapseTriangulate(fold){
+        if (!fold){
+            fold = this.foldData;
+        }
+        // fold = FOLD.filter.collapseNearbyVertices(fold, this.config.import_pattern.vertTol);
+        // console.log(fold.edges_vertices);
+        // fold = FOLD.filter.removeLoopEdges(fold); //remove edges that points to same vertex
+        // console.log(fold.edges_vertices);
+        // fold = FOLD.filter.removeDuplicateEdges_vertices(fold); //remove duplicate edges
+        // fold = FOLD.filter.subdivideCrossingEdges_vertices(fold, globals.vertTol)//find intersections and add vertices/edges
+    
+        fold = this.findIntersections(fold, this.config.import_pattern.vertTol);
+        //cleanup after intersection operation
+        fold = FOLD.filter.collapseNearbyVertices(fold, this.config.import_pattern.vertTol);
+        fold = FOLD.filter.removeLoopEdges(fold); //remove edges that points to same vertex
+        fold = FOLD.filter.removeDuplicateEdges_vertices(fold); //remove duplicate edges
+    
+        fold = FOLD.convert.edges_vertices_to_vertices_vertices_unsorted(fold);
+        fold = this.removeStrayVertices(fold); //delete stray anchors
+        fold = this.removeRedundantVertices(fold, 0.01); //remove vertices that split edge
+    
+        fold = FOLD.convert.sort_vertices_vertices(fold);
+        fold = FOLD.convert.vertices_vertices_to_faces_vertices(fold);
+    
+        fold = this.edgesVerticesToVerticesEdges(fold);
+        fold = this.removeBorderFaces(fold); //expose holes surrounded by all border edges
+    
+        fold = this.reverseFaceOrder(fold); //set faces to counter clockwise
+        this.foldData = this.processFold(fold);
+        return this.processFold(fold);
+    }
+}
+>>>>>>> 64b01f034cf24fff986e011f9071bbd6fc64980f
 
 function makeVector(v){
     if (v.length == 2) return makeVector2(v);

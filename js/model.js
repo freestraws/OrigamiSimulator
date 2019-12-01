@@ -51,11 +51,6 @@ module.exports.Model = class{
 
         this.clearGeometries();
         this.setMeshMaterial();
-        // globals.threeView.sceneAddModel(frontside);
-        // globals.threeView.sceneAddModel(backside);
-        // _.each(this.lines, function(line){
-        //     globals.threeView.sceneAddModel(line);
-        // });
     }
 
     clearGeometries(){
@@ -110,10 +105,6 @@ module.exports.Model = class{
                 polygonOffsetUnits: 1
             });
             this.backside.visible = false;
-            if (!global.threeView.simulationRunning) {
-                this.getSolver().render();
-                this.setGeoUpdates();
-            }
         } else {
             this.material = new THREE.MeshPhongMaterial({
                 flatShading: true,
@@ -167,32 +158,12 @@ module.exports.Model = class{
         return this.colors;
     }
 
-    pause(){
-        globals.threeView.pauseSimulation();
-    }
-
-    resume(){
-        globals.threeView.startSimulation();
-    }
-
     reset(){
         this.getSolver().reset();
-        this.setGeoUpdates();
     }
 
     step(numSteps){
         this.getSolver().solve(numSteps);
-        this.setGeoUpdates();
-    }
-
-    setGeoUpdates(){
-        this.geometry.attributes.position.needsUpdate = true;
-        if (this.config.view.colorMode == "axialStrain") this.geometry.attributes.color.needsUpdate = true;
-        if (this.config.toggles.userInteractionEnabled || this.config.toggles.vrEnabled) this.geometry.computeBoundingBox();
-    }
-
-    startSolver(){
-        // global.threeView.startAnimation();
     }
 
     getSolver(){
@@ -216,13 +187,7 @@ module.exports.Model = class{
 
         this.nextFold = fold;
         this.nextCreaseParams = creaseParams;
-
         this.sync();
-
-        if (!this.inited) {
-            this.startSolver();//start animation loop
-            this.inited = true;
-        }
     }
 
     sync(){
@@ -305,12 +270,12 @@ module.exports.Model = class{
         };
         
         for (var i=0; i<this.fold.edges_assignment.length; i++){
-            var edge = this.fold.edges_vertices[i];
-            var assignment = this.fold.edges_assignment[i];
+            let edge = this.fold.edges_vertices[i];
+            let assignment = this.fold.edges_assignment[i];
             lineIndices[assignment].push(edge[0]);
             lineIndices[assignment].push(edge[1]);
         }
-        for (var key in this.lines){
+        for(let key in this.lines){
             var indicesArray = lineIndices[key];
             var indices = new Uint16Array(indicesArray.length);
             for (var i=0; i<indicesArray.length; i++){
@@ -364,7 +329,6 @@ module.exports.Model = class{
 
     syncSolver(){
         this.getSolver().syncNodesAndEdges(this.getNodes(), this.getEdges(), this.getFaces(), this.getCreases(), this.getPositionsArray(), this.getColorsArray());
-        global.simNeedsSync = false;
     }
 
     getNodes(){

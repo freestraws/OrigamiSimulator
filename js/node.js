@@ -166,7 +166,6 @@ module.exports.Node = class{
 
 
     //dynamic solve
-
     getOriginalPosition(){
         return this._originalPosition.clone();
     }

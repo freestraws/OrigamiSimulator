@@ -4,11 +4,10 @@
 
 // var beamMaterialHighlight = new THREE.LineBasicMaterial({color: 0xff0000, linewidth: 1});
 // var beamMaterial = new THREE.LineBasicMaterial({color: 0x000000, linewidth: 1});
+
 module.exports.Beam = class{
-    constructor(nodes, axialStiffness, percentDamping){
+    constructor(nodes, axialStiffness=20, percentDamping=0.45){
         this.type = "beam";
-        this.axialStiffness = axialStiffness;
-        this.percentDamping = percentDamping;
 
         nodes[0].addBeam(this);
         nodes[1].addBeam(this);
@@ -22,6 +21,8 @@ module.exports.Beam = class{
         // this.object3D = new THREE.Line(lineGeometry, beamMaterial);
 
         this.originalLength = this.getLength();
+        this.axialStiffness = axialStiffness;
+        this.percentDamping = percentDamping;
     }
     
     // highlight(){

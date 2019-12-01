@@ -5,7 +5,7 @@
   "main": "js/index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "index": "node js/index.js"
+    "run": "node --inspect-brk js/index.js"
   },
   "repository": {
     "type": "git",

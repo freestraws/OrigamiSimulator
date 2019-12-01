@@ -87,7 +87,7 @@ module.exports.objFileContent = function(pattern){
         return;
     }
     geo.vertices.forEach(function(_, index){
-        this[index].multiplyScalar(parseInt(pattern.config.save_stl.exportScale)/pattern.config.scale);
+        this[index].multiplyScalar(parseFloat(pattern.config.save_stl.exportScale)/pattern.config.scale);
     }, geo.vertices);
 
     var fold = pattern.getFoldData(false);

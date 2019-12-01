@@ -216,7 +216,7 @@ module.exports.dynamicSolver = class {
 
     initTexturesAndPrograms(){
         var gpuMath = this.gpuMath;
-        var vertexShader = fs.readFileSync(path.join(shader_dir, "vertex", "vertexShader.glsl"), 'utf8', 'utf8');
+        var vertexShader = fs.readFileSync(path.join(shader_dir, "vertex", "vertexShader.glsl"), 'utf8');
         var textureDim = this.textureDim, textureDimCreases = this.textureDimCreases, textureDimNodeFaces = this.textureDimNodeFaces, textureDimFaces = this.textureDimFaces, textureDimNodeCreases = this.textureDimNodeCreases, textureDimEdges = this.textureDimEdges;
 
 
